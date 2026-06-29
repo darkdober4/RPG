@@ -42,6 +42,20 @@ def get_game_session():
             game_sessions[game_id].player_stats['gold'] = saved_stats.get('gold', 0)
             game_sessions[game_id].player_stats['exp_for_next_level'] = saved_stats.get('exp_for_next_level', 100)
             
+            # Charger TOUTES les stats principales pour éviter la perte lors de la mort
+            if 'health' in saved_stats:
+                game_sessions[game_id].player_stats['health'] = saved_stats['health']
+            if 'max_health' in saved_stats:
+                game_sessions[game_id].player_stats['max_health'] = saved_stats['max_health']
+            if 'mana' in saved_stats:
+                game_sessions[game_id].player_stats['mana'] = saved_stats['mana']
+            if 'max_mana' in saved_stats:
+                game_sessions[game_id].player_stats['max_mana'] = saved_stats['max_mana']
+            if 'attack' in saved_stats:
+                game_sessions[game_id].player_stats['attack'] = saved_stats['attack']
+            if 'defense' in saved_stats:
+                game_sessions[game_id].player_stats['defense'] = saved_stats['defense']
+            
             # CORRECTION : Charger l'inventaire et l'équipement avec les bons types
             saved_inventory = saved_stats.get('inventory', {})
             if isinstance(saved_inventory, dict):
@@ -55,13 +69,6 @@ def get_game_session():
             if isinstance(saved_equipped, dict):
                 for slot in game_sessions[game_id].equipped:
                     game_sessions[game_id].equipped[slot] = saved_equipped.get(slot, None)
-            
-            # Recalculer les stats de base avec le niveau
-            level = game_sessions[game_id].player_stats['level']
-            level_multiplier = 1 + (level - 1) * 0.01
-            game_sessions[game_id].base_stats['max_health'] = int(100 * level_multiplier)
-            game_sessions[game_id].player_stats['max_health'] = game_sessions[game_id].base_stats['max_health']
-            game_sessions[game_id].player_stats['health'] = game_sessions[game_id].base_stats['max_health']
     
     return game_sessions[game_id]
 
@@ -210,6 +217,31 @@ def action():
     
     game.check_win()
     
+    # Sauvegarder automatiquement les stats si le joueur est mort
+    if game.game_over:
+        session['saved_stats'] = {
+            'exp': game.player_stats['exp'],
+            'level': game.player_stats['level'],
+            'gold': game.player_stats['gold'],
+            'exp_for_next_level': game.player_stats['exp_for_next_level'],
+            'inventory': game.inventory.copy(),
+            'equipped': game.equipped.copy(),
+            'health': game.player_stats['health'],
+            'max_health': game.player_stats['max_health'],
+            'mana': game.player_stats['mana'],
+            'max_mana': game.player_stats['max_mana'],
+            'attack': game.player_stats['attack'],
+            'defense': game.player_stats['defense']
+        }
+        session.modified = True
+        # Supprimer la session de jeu actuelle pour forcer un rechargement
+        # avec les stats sauvegardées au prochain accès
+        game_id = session.get('game_id')
+        if game_id and game_id in game_sessions:
+            del game_sessions[game_id]
+        # Réinitialiser game_over pour permettre de continuer
+        game.game_over = False
+    
     session['last_message'] = message
     session.modified = True
     
@@ -218,17 +250,23 @@ def action():
 
 @app.route('/restart', methods=['POST'])
 def restart():
-    """Recommence le jeu en gardant l'XP et les objets"""
+    """Recommence le jeu en gardant l'XP, les objets et toutes les stats"""
     game = get_game_session()
     
-    # Sauvegarder les stats actuelles dans la session
+    # Sauvegarder TOUTES les stats actuelles dans la session
     session['saved_stats'] = {
         'exp': game.player_stats['exp'],
         'level': game.player_stats['level'],
         'gold': game.player_stats['gold'],
         'exp_for_next_level': game.player_stats['exp_for_next_level'],
         'inventory': game.inventory.copy(),
-        'equipped': game.equipped.copy()
+        'equipped': game.equipped.copy(),
+        'health': game.player_stats['health'],
+        'max_health': game.player_stats['max_health'],
+        'mana': game.player_stats['mana'],
+        'max_mana': game.player_stats['max_mana'],
+        'attack': game.player_stats['attack'],
+        'defense': game.player_stats['defense']
     }
     
     game_id = session.get('game_id')

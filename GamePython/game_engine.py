@@ -52,6 +52,10 @@ class GameEngine:
         self.daily_quests = {}
         self.quest_progress = {}
         self.completed_quests = []
+        
+        # Initialiser toutes les quêtes avec une progression de 0
+        for quest_id in DAILY_QUESTS:
+            self.quest_progress[quest_id] = 0
         self.temporary_buffs = {}
         self.enemy_health = 0
         self.enemy_max_health = 0
@@ -64,8 +68,10 @@ class GameEngine:
             return False
         self.player_class = class_name
         class_data = CLASSES[class_name]
+        # Mettre à jour player_stats et base_stats avec les stats de la classe
         for stat, value in class_data["base_stats"].items():
             self.player_stats[stat] = value
+            self.base_stats[stat] = value
         if class_name in SKILLS:
             self.skills_learned[class_name] = {}
             for skill_name, skill_data in SKILLS[class_name].items():
@@ -223,10 +229,14 @@ class GameEngine:
             loot = self.get_loot(self.current_enemy.get("level", 1))
             exp_gain = self.current_enemy.get("exp_reward", 50)
             gold_gain = self.current_enemy.get("gold_reward", 20)
+            enemy_name = self.current_enemy["name"]
             
             self.player_stats["gold"] += gold_gain
             self.add_exp(exp_gain)
             self.total_enemies_defeated += 1
+            
+            # Mettre à jour la progression des quêtes
+            self.update_quest_progress(enemy_name=enemy_name, exp_gain=exp_gain, gold_gain=gold_gain)
             
             if self.current_enemy.get("is_boss"):
                 self.boss_defeated[self.current_enemy["name"]] = True
@@ -279,6 +289,8 @@ class GameEngine:
     
     def add_exp(self, amount):
         self.player_stats["exp"] += amount
+        # Mettre à jour la progression des quêtes d'XP
+        self.update_quest_progress(exp_gain=amount)
         self.check_level_up()
     
     def check_level_up(self):
@@ -288,6 +300,12 @@ class GameEngine:
             self.player_stats["exp_for_next_level"] = int(self.player_stats["exp_for_next_level"] * 1.1)
             
             if self.player_class in CLASSES:
+                # Bonus de mana pour TOUTES les classes : 5 + 0.1% du mana max par niveau
+                current_max_mana = self.player_stats.get("max_mana", 50)
+                mana_bonus = 5 + (current_max_mana * 0.001)  # 0.1% = 0.001
+                self.player_stats["mana"] += mana_bonus
+                self.player_stats["max_mana"] += mana_bonus
+                
                 if self.player_class == "Guerrier":
                     self.player_stats["defense"] += 2
                     self.player_stats["attack"] += 1
@@ -295,12 +313,14 @@ class GameEngine:
                     self.player_stats["max_health"] += 5
                 elif self.player_class == "Mage":
                     self.player_stats["mana"] += 2
+                    self.player_stats["max_mana"] += 2
                     self.player_stats["attack"] += 0.5
                     self.player_stats["health"] += 3
                     self.player_stats["max_health"] += 3
                 elif self.player_class == "Archer":
                     self.player_stats["attack"] += 1.5
                     self.player_stats["mana"] += 1
+                    self.player_stats["max_mana"] += 1
                     self.player_stats["health"] += 4
                     self.player_stats["max_health"] += 4
             
@@ -484,6 +504,8 @@ class GameEngine:
         item_data = ITEMS[item_name]
         price = item_data.get("sell_price", item_data.get("price", 10) // 2)
         self.player_stats["gold"] += price
+        # Mettre à jour la progression des quêtes d'or
+        self.update_quest_progress(gold_gain=price)
         self.inventory[item_name] -= 1
         if self.inventory[item_name] <= 0:
             del self.inventory[item_name]
@@ -726,9 +748,14 @@ class GameEngine:
                 loot = self.get_loot(self.current_enemy.get("level", 1))
                 exp_gain = self.current_enemy.get("exp_reward", 50)
                 gold_gain = self.current_enemy.get("gold_reward", 20)
+                enemy_name = self.current_enemy["name"]
+                
                 self.player_stats["gold"] += gold_gain
                 self.add_exp(exp_gain)
                 self.total_enemies_defeated += 1
+                
+                # Mettre à jour la progression des quêtes
+                self.update_quest_progress(enemy_name=enemy_name, exp_gain=exp_gain, gold_gain=gold_gain)
                 
                 if self.current_enemy.get("is_boss"):
                     self.boss_defeated[self.current_enemy["name"]] = True
@@ -781,21 +808,95 @@ class GameEngine:
         elif difficulty == "difficile":
             self.boss_spawn_chance = 0.30
         return f"Difficulté définie à {difficulty}!"
+
+    def update_quest_progress(self, enemy_name=None, exp_gain=0, gold_gain=0):
+        """Met à jour la progression de toutes les quêtes actives"""
+        if not DAILY_QUESTS:
+            return
+        
+        for quest_id, quest_data in DAILY_QUESTS.items():
+            # Skip already completed quests
+            if quest_id in self.completed_quests:
+                continue
+            
+            # Initialize progress if not exists
+            if quest_id not in self.quest_progress:
+                self.quest_progress[quest_id] = 0
+            
+            # Quest type: kill specific enemy
+            if 'target_enemy' in quest_data:
+                target_enemy = quest_data['target_enemy']
+                if enemy_name == target_enemy:
+                    self.quest_progress[quest_id] += 1
+                    # Check if quest is completed
+                    if self.quest_progress[quest_id] >= quest_data.get('target_count', 1):
+                        self.complete_quest(quest_id)
+            
+            # Quest type: collect gold
+            elif quest_data.get('type') == 'gold':
+                target_gold = quest_data.get('target_gold', 0)
+                current_gold = self.quest_progress.get(quest_id, 0)
+                new_gold = current_gold + gold_gain
+                self.quest_progress[quest_id] = new_gold
+                # Check if quest is completed
+                if new_gold >= target_gold:
+                    self.complete_quest(quest_id)
+            
+            # Quest type: gain exp
+            elif quest_data.get('type') == 'exp':
+                target_exp = quest_data.get('target_exp', 0)
+                current_exp = self.quest_progress.get(quest_id, 0)
+                new_exp = current_exp + exp_gain
+                self.quest_progress[quest_id] = new_exp
+                # Check if quest is completed
+                if new_exp >= target_exp:
+                    self.complete_quest(quest_id)
     
     def complete_quest(self, quest_id):
         if quest_id not in DAILY_QUESTS:
             return False
         if quest_id in self.completed_quests:
             return False
+        
         quest_data = DAILY_QUESTS[quest_id]
+        
+        # Vérifier que la quête est effectivement accomplie
+        quest_completed = False
+        if 'target_enemy' in quest_data:
+            # Quête de type "tuer X ennemis"
+            target_count = quest_data.get('target_count', 1)
+            if self.quest_progress.get(quest_id, 0) >= target_count:
+                quest_completed = True
+        elif quest_data.get('type') == 'gold':
+            # Quête de type "amasser X or"
+            target_gold = quest_data.get('target_gold', 0)
+            if self.quest_progress.get(quest_id, 0) >= target_gold:
+                quest_completed = True
+        elif quest_data.get('type') == 'exp':
+            # Quête de type "gagner X XP"
+            target_exp = quest_data.get('target_exp', 0)
+            if self.quest_progress.get(quest_id, 0) >= target_exp:
+                quest_completed = True
+        else:
+            # Quête sans type spécifique, on la considère comme accomplie
+            quest_completed = True
+        
+        if not quest_completed:
+            return False
+        
+        # Marquer la quête comme complétée AVANT de donner les récompenses
+        # pour éviter la récursion infinie
+        self.completed_quests.append(quest_id)
+        
         exp_reward = quest_data.get("reward_exp", 0)
         gold_reward = quest_data.get("reward_gold", 0)
         self.add_exp(exp_reward)
         self.player_stats["gold"] += gold_reward
+        # Mettre à jour la progression des quêtes avec les récompenses
+        self.update_quest_progress(gold_gain=gold_reward)
         if quest_data.get("reward_item"):
             reward_item = quest_data["reward_item"]
             self.inventory[reward_item] = self.inventory.get(reward_item, 0) + 1
-        self.completed_quests.append(quest_id)
         return True
     
     def check_win(self):
