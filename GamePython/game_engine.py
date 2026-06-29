@@ -1,0 +1,822 @@
+# Game Engine - Moteur de jeu RPG
+from game_config import (
+    GAME_CONFIG, LOCATIONS, ENEMIES, NPCS_DIALOGUE, ITEMS, SHOPS,
+    DIFFICULTY_SETTINGS, LOOT_BY_RARITY, CLASSES, DAILY_QUESTS,
+    SKILLS, BOSSES, BOSS_EQUIPMENT_CONFIG, PROGRESSIVE_SKILLS
+)
+import random
+from datetime import datetime
+
+
+class GameEngine:
+    """Moteur de jeu principal pour le RPG text-based."""
+    
+    def __init__(self):
+        """Initialise le jeu avec tous les attributs de base."""
+        self.player_stats = GAME_CONFIG["player_stats"].copy()
+        self.base_stats = GAME_CONFIG["player_stats"].copy()
+        self.player_class = None
+        self.inventory = {}
+        self.equipped = {
+            "weapon": None,
+            "armor": None
+        }
+        self.current_location = GAME_CONFIG["starting_location"]
+        self.in_combat = False
+        self.current_enemy = None
+        self.combat_turn = 0
+        self.visited_locations = set()
+        self.visited_locations.add(self.current_location)
+        self.current_shop = None
+        self.skills_learned = {}
+        self.active_buffs = []
+        self.boss_defeated = {}
+        self.game_started = datetime.now()
+        self.difficulty = "moyen"
+        self.daily_quests_completed = []
+        self.total_enemies_defeated = 0
+        self.total_damage_dealt = 0
+        self.total_damage_taken = 0
+        self.boss_spawn_chance = 0.15
+        self.game_over = False
+        self.game_won = False
+        self.show_options = False
+        self.show_inventory = False
+        self.show_quests = False
+        self.show_skills = False
+        self.show_map = False
+        self.unlocked_skills = {}
+        self.skill_notifications = []
+        self.is_boss_fight = False
+        self.current_boss = None
+        self.daily_quests = {}
+        self.quest_progress = {}
+        self.completed_quests = []
+        self.temporary_buffs = {}
+        self.enemy_health = 0
+        self.enemy_max_health = 0
+        self.enemy_level = 1
+        self.enemy_attack = 0
+        self.enemy_defense = 0
+
+    def set_class(self, class_name):
+        if class_name not in CLASSES:
+            return False
+        self.player_class = class_name
+        class_data = CLASSES[class_name]
+        for stat, value in class_data["base_stats"].items():
+            self.player_stats[stat] = value
+        if class_name in SKILLS:
+            self.skills_learned[class_name] = {}
+            for skill_name, skill_data in SKILLS[class_name].items():
+                if skill_data.get("unlocked_at", 1) <= self.player_stats["level"]:
+                    self.skills_learned[class_name][skill_name] = True
+        return True
+    
+    def get_location_description(self):
+        if self.current_location not in LOCATIONS:
+            return "<p>Localisation inconnue</p>"
+        location_data = LOCATIONS[self.current_location]
+        description = f"<h2>{location_data.get('name', 'Localisation')}</h2>"
+        description += f"<p>{location_data.get('description', 'Aucune description')}</p>"
+        if location_data.get("enemies"):
+            description += "<p><strong>Ennemis :</strong> " + ", ".join(location_data["enemies"]) + "</p>"
+        if location_data.get("npcs"):
+            description += "<p><strong>NPCs :</strong> " + ", ".join(location_data["npcs"]) + "</p>"
+        if location_data.get("shops"):
+            description += "<p><strong>Magasins :</strong> " + ", ".join(location_data["shops"]) + "</p>"
+        return description
+    
+    def get_available_actions(self):
+        actions = []
+        if self.in_combat:
+            actions = [
+                {"type": "attack", "text": "Attaquer", "value": "attack"},
+                {"type": "use_skill", "text": "Utiliser compétence", "value": "use_skill"},
+                {"type": "use_item", "text": "Utiliser objet", "value": "use_item"},
+                {"type": "flee", "text": "Fuir le combat", "value": "flee"}
+            ]
+        else:
+            if self.current_location in LOCATIONS:
+                location_data = LOCATIONS[self.current_location]
+                if location_data.get("exits"):
+                    for direction, destination in location_data["exits"].items():
+                        dest_name = LOCATIONS.get(destination, {}).get("name", destination)
+                        actions.append({
+                            "type": "move",
+                            "text": f"Aller {direction.upper()} → {dest_name}",
+                            "value": destination
+                        })
+                if location_data.get("enemies"):
+                    actions.append({
+                        "type": "fight",
+                        "text": "Combattre un ennemi",
+                        "value": ""
+                    })
+                actions.extend([
+                    {"type": "explore", "text": "Explorer", "value": "explore"},
+                    {"type": "check_inventory", "text": "Inventaire", "value": "check_inventory"},
+                    {"type": "check_stats", "text": "Stats", "value": "check_stats"},
+                    {"type": "rest", "text": "Se reposer", "value": "rest"}
+                ])
+        return actions
+    
+    def move(self, destination):
+        if self.in_combat:
+            return "Vous ne pouvez pas vous déplacer pendant un combat !"
+        if self.current_location not in LOCATIONS:
+            return "Localisation actuelle inconnue !"
+        location_data = LOCATIONS[self.current_location]
+        exits = location_data.get("exits", {})
+        if destination not in exits.values():
+            return f"Vous ne pouvez pas aller à {destination} depuis {self.current_location}."
+        self.current_location = destination
+        self.visited_locations.add(destination)
+        self.close_shop()
+        return f"Vous vous êtes déplacé vers {destination}."
+    
+    def explore_location(self):
+        if self.current_location not in LOCATIONS:
+            return "Localisation inconnue !"
+        location_data = LOCATIONS[self.current_location]
+        exploration_result = f"Vous explorez {location_data.get('name', 'la zone')}...\n"
+        if random.random() < 0.3 and location_data.get("loot"):
+            item = random.choice(location_data["loot"])
+            exploration_result += f"Vous avez trouvé : {item}"
+            if item in self.inventory:
+                self.inventory[item] += 1
+            else:
+                self.inventory[item] = 1
+        else:
+            exploration_result += "Vous n'avez rien trouvé d'intéressant."
+        if random.random() < 0.25 and location_data.get("enemies"):
+            exploration_result += "\nUn ennemi vous barre le chemin !"
+            self.start_fight()
+        return exploration_result
+    
+    def start_fight(self, enemy=None):
+        if self.current_location not in LOCATIONS:
+            return "Pas d'ennemi ici !"
+        location_data = LOCATIONS[self.current_location]
+        available_enemies = location_data.get("enemies", [])
+        if not available_enemies and enemy is None:
+            return "Pas d'ennemi disponible !"
+        
+        if random.random() < self.boss_spawn_chance and BOSSES:
+            boss_name = random.choice(list(BOSSES.keys()))
+            boss_data = BOSSES[boss_name].copy()
+            self.current_enemy = {
+                "name": boss_name,
+                "is_boss": True,
+                "health": boss_data.get("base_health", 250),
+                "max_health": boss_data.get("base_health", 250),
+                "attack": boss_data.get("base_attack", 35),
+                "defense": boss_data.get("base_defense", 15),
+                "level": boss_data.get("level", 15),
+                "exp_reward": boss_data.get("exp_reward", 750),
+                "gold_reward": boss_data.get("gold_reward", 400),
+                "description": boss_data.get("description", ""),
+                "icon": boss_data.get("icon", "👹")
+            }
+            self.is_boss_fight = True
+            self.current_boss = boss_name
+        else:
+            enemy_name = enemy or random.choice(available_enemies)
+            if enemy_name not in ENEMIES:
+                return f"Ennemi {enemy_name} introuvable !"
+            self.current_enemy = ENEMIES[enemy_name].copy()
+            self.current_enemy["name"] = enemy_name
+            self.current_enemy["is_boss"] = False
+            self.current_enemy["max_health"] = self.current_enemy.get("health", 50)
+            self.is_boss_fight = False
+            self.current_boss = None
+        
+        self.enemy_health = self.current_enemy.get("health", 1)
+        self.enemy_max_health = self.current_enemy.get("max_health", 1)
+        self.enemy_level = self.current_enemy.get("level", 1)
+        self.enemy_attack = self.current_enemy.get("attack", 5)
+        self.enemy_defense = self.current_enemy.get("defense", 0)
+        
+        self.in_combat = True
+        self.combat_turn = 0
+        return f"Un combat a commencé contre {self.current_enemy['name']} !"
+    
+    def attack_enemy(self):
+        if not self.in_combat or not self.current_enemy:
+            return "Vous n'êtes pas en combat !"
+        
+        player_damage = self.player_stats["attack"] + random.randint(-2, 5)
+        enemy_defense = self.current_enemy.get("defense", 0)
+        player_damage = max(1, player_damage - enemy_defense // 2)
+        
+        enemy_damage = self.current_enemy.get("attack", 5) + random.randint(-2, 3)
+        player_defense = self.player_stats["defense"]
+        enemy_damage = max(1, enemy_damage - player_defense // 2)
+        
+        self.current_enemy["health"] -= player_damage
+        self.total_damage_dealt += player_damage
+        self.enemy_health = self.current_enemy.get("health", 0)
+        
+        combat_log = f"Vous avez infligé {player_damage} dégâts !\n"
+        
+        if self.current_enemy["health"] <= 0:
+            loot = self.get_loot(self.current_enemy.get("level", 1))
+            exp_gain = self.current_enemy.get("exp_reward", 50)
+            gold_gain = self.current_enemy.get("gold_reward", 20)
+            
+            self.player_stats["gold"] += gold_gain
+            self.add_exp(exp_gain)
+            self.total_enemies_defeated += 1
+            
+            if self.current_enemy.get("is_boss"):
+                self.boss_defeated[self.current_enemy["name"]] = True
+            
+            combat_log += f"\n{self.current_enemy['name']} a été vaincu !\n"
+            combat_log += f"Expérience gagnée : {exp_gain}\nOr gagné : {gold_gain}\n"
+            
+            if loot:
+                for item, qty in loot.items():
+                    self.inventory[item] = self.inventory.get(item, 0) + qty
+                    combat_log += f"Butin : {item} (x{qty})\n"
+            
+            self.in_combat = False
+            self.current_enemy = None
+            self.enemy_health = 0
+            self.enemy_max_health = 0
+            return combat_log
+        
+        self.take_damage(enemy_damage)
+        combat_log += f"L'ennemi a infligé {enemy_damage} dégâts !\n"
+        combat_log += f"Vie ennemie : {self.current_enemy['health']}\n"
+        combat_log += f"Votre vie : {self.player_stats['health']}\n"
+        
+        if self.player_stats['health'] <= 0:
+            combat_log += "Vous avez été vaincu !"
+            self.in_combat = False
+            self.current_enemy = None
+            self.enemy_health = 0
+            self.enemy_max_health = 0
+            self.reset_health()
+        
+        self.combat_turn += 1
+        return combat_log
+    
+    def take_damage(self, amount):
+        armor_bonus = self.temporary_buffs.get("defense", 0)
+        damage = max(1, amount - (self.player_stats.get("armor", 0) + armor_bonus) // 2)
+        self.player_stats["health"] -= damage
+        self.total_damage_taken += damage
+        if self.player_stats["health"] <= 0:
+            self.player_stats["health"] = 0
+            self.game_over = True
+            self.in_combat = False
+        return damage
+    
+    def heal(self, amount):
+        healed = min(amount, self.player_stats["max_health"] - self.player_stats["health"])
+        self.player_stats["health"] += healed
+        return healed
+    
+    def add_exp(self, amount):
+        self.player_stats["exp"] += amount
+        self.check_level_up()
+    
+    def check_level_up(self):
+        while self.player_stats["exp"] >= self.player_stats["exp_for_next_level"]:
+            self.player_stats["exp"] -= self.player_stats["exp_for_next_level"]
+            self.player_stats["level"] += 1
+            self.player_stats["exp_for_next_level"] = int(self.player_stats["exp_for_next_level"] * 1.1)
+            
+            if self.player_class in CLASSES:
+                if self.player_class == "Guerrier":
+                    self.player_stats["defense"] += 2
+                    self.player_stats["attack"] += 1
+                    self.player_stats["health"] += 5
+                    self.player_stats["max_health"] += 5
+                elif self.player_class == "Mage":
+                    self.player_stats["mana"] += 2
+                    self.player_stats["attack"] += 0.5
+                    self.player_stats["health"] += 3
+                    self.player_stats["max_health"] += 3
+                elif self.player_class == "Archer":
+                    self.player_stats["attack"] += 1.5
+                    self.player_stats["mana"] += 1
+                    self.player_stats["health"] += 4
+                    self.player_stats["max_health"] += 4
+            
+            self.unlock_progressive_skills()
+    
+    def get_loot(self, enemy_level):
+        loot = {}
+        if not LOOT_BY_RARITY:
+            return loot
+        
+        possible_rarities = ["commun"]
+        if enemy_level >= 5:
+            possible_rarities.append("rare")
+        if enemy_level >= 10:
+            possible_rarities.append("epique")
+        if enemy_level >= 20:
+            possible_rarities.append("legendaire")
+        
+        for _ in range(random.randint(1, 3)):
+            rarity = random.choice(possible_rarities)
+            if rarity in LOOT_BY_RARITY:
+                item = random.choice(LOOT_BY_RARITY[rarity])
+                loot[item] = loot.get(item, 0) + 1
+        
+        return loot
+    
+    def equip_item(self, item_name, item_type):
+        if item_type not in self.equipped:
+            return f"Type d'équipement {item_type} invalide !"
+        if item_name not in ITEMS:
+            return f"Objet {item_name} introuvable !"
+        if item_name not in self.inventory or self.inventory[item_name] <= 0:
+            return f"Vous n'avez pas {item_name} dans votre inventaire !"
+        
+        item_data = ITEMS[item_name]
+        if item_data.get("type") != item_type:
+            return f"{item_name} n'est pas un {item_type} !"
+        
+        if self.equipped[item_type]:
+            old_item = self.equipped[item_type]
+            self.inventory[old_item] = self.inventory.get(old_item, 0) + 1
+            if old_item in ITEMS:
+                old_data = ITEMS[old_item]
+                for stat_key in ["attack_bonus", "defense_bonus", "health_bonus", "mana_bonus"]:
+                    if stat_key in old_data:
+                        if stat_key == "attack_bonus":
+                            self.player_stats["attack"] = max(0, self.player_stats.get("attack", 0) - old_data[stat_key])
+                        elif stat_key == "defense_bonus":
+                            self.player_stats["defense"] = max(0, self.player_stats.get("defense", 0) - old_data[stat_key])
+                        elif stat_key == "health_bonus":
+                            self.player_stats["max_health"] = max(1, self.player_stats.get("max_health", 100) - old_data[stat_key])
+                            self.player_stats["health"] = min(self.player_stats["health"], self.player_stats["max_health"])
+                        elif stat_key == "mana_bonus":
+                            self.player_stats["max_mana"] = max(0, self.player_stats.get("max_mana", 50) - old_data[stat_key])
+                            self.player_stats["mana"] = min(self.player_stats["mana"], self.player_stats["max_mana"])
+        
+        self.equipped[item_type] = item_name
+        self.inventory[item_name] -= 1
+        
+        for stat_key in ["attack_bonus", "defense_bonus", "health_bonus", "mana_bonus"]:
+            if stat_key in item_data:
+                if stat_key == "attack_bonus":
+                    self.player_stats["attack"] = self.player_stats.get("attack", 0) + item_data[stat_key]
+                elif stat_key == "defense_bonus":
+                    self.player_stats["defense"] = self.player_stats.get("defense", 0) + item_data[stat_key]
+                elif stat_key == "health_bonus":
+                    self.player_stats["max_health"] = self.player_stats.get("max_health", 100) + item_data[stat_key]
+                    self.player_stats["health"] = self.player_stats["max_health"]
+                elif stat_key == "mana_bonus":
+                    self.player_stats["max_mana"] = self.player_stats.get("max_mana", 50) + item_data[stat_key]
+                    self.player_stats["mana"] = self.player_stats["max_mana"]
+        
+        return f"Vous avez équipé {item_name} !"
+    
+    def unequip_item(self, item_type):
+        if item_type not in self.equipped:
+            return f"Type d'équipement {item_type} invalide !"
+        if not self.equipped[item_type]:
+            return f"Vous n'avez rien d'équipé en {item_type} !"
+        
+        item_name = self.equipped[item_type]
+        item_data = ITEMS.get(item_name, {})
+        
+        for stat_key in ["attack_bonus", "defense_bonus", "health_bonus", "mana_bonus"]:
+            if stat_key in item_data:
+                if stat_key == "attack_bonus":
+                    self.player_stats["attack"] = max(0, self.player_stats.get("attack", 0) - item_data[stat_key])
+                elif stat_key == "defense_bonus":
+                    self.player_stats["defense"] = max(0, self.player_stats.get("defense", 0) - item_data[stat_key])
+                elif stat_key == "health_bonus":
+                    self.player_stats["max_health"] = max(1, self.player_stats.get("max_health", 100) - item_data[stat_key])
+                    self.player_stats["health"] = min(self.player_stats["health"], self.player_stats["max_health"])
+                elif stat_key == "mana_bonus":
+                    self.player_stats["max_mana"] = max(0, self.player_stats.get("max_mana", 50) - item_data[stat_key])
+                    self.player_stats["mana"] = min(self.player_stats["mana"], self.player_stats["max_mana"])
+        
+        self.equipped[item_type] = None
+        self.inventory[item_name] = self.inventory.get(item_name, 0) + 1
+        return f"Vous avez déséquipé {item_name} !"
+    
+    def use_item(self, item_name):
+        if item_name not in self.inventory or self.inventory[item_name] <= 0:
+            return f"Vous n'avez pas {item_name} !"
+        if item_name not in ITEMS:
+            return f"Objet {item_name} introuvable !"
+        
+        item_data = ITEMS[item_name]
+        if item_data.get("type") != "consumable":
+            return f"{item_name} n'est pas consommable !"
+        
+        effect_message = f"Vous avez utilisé {item_name} !\n"
+        
+        if item_data.get("heal"):
+            healed = self.heal(item_data["heal"])
+            effect_message += f"Santé restaurée : {healed} HP\n"
+        
+        if item_data.get("mana"):
+            mana_restored = min(item_data["mana"], 
+                              self.player_stats["max_mana"] - self.player_stats["mana"])
+            self.player_stats["mana"] += mana_restored
+            effect_message += f"Mana restauré : {mana_restored} MP\n"
+        
+        if item_data.get("exp_boost"):
+            effect_message += f"Bonus d'expérience : {item_data['exp_boost']}%\n"
+        
+        if item_data.get("attack_boost"):
+            boost = item_data["attack_boost"]
+            duration = item_data.get("duration", 3)
+            self.temporary_buffs["attack"] = boost
+            effect_message += f"Attaque augmentée de +{boost} pendant {duration} tours !\n"
+        
+        if item_data.get("defense_boost"):
+            boost = item_data["defense_boost"]
+            duration = item_data.get("duration", 3)
+            self.temporary_buffs["defense"] = boost
+            effect_message += f"Défense augmentée de +{boost} pendant {duration} tours !\n"
+        
+        self.inventory[item_name] -= 1
+        if self.inventory[item_name] <= 0:
+            del self.inventory[item_name]
+        
+        return effect_message
+    
+    def visit_shop(self, shop_name):
+        if shop_name not in SHOPS:
+            return f"Magasin {shop_name} introuvable !"
+        self.current_shop = shop_name
+        shop_data = SHOPS[shop_name]
+        shop_info = f"<h2>{shop_data.get('name', shop_name)}</h2>\n"
+        shop_info += f"<p>{shop_data.get('description', '')}</p>\n"
+        shop_info += "<h3>Inventaire :</h3>\n"
+        for item_name in shop_data.get("items", []):
+            item_data = ITEMS.get(item_name, {})
+            price = item_data.get("price", 0)
+            shop_info += f"- {item_name}: {price} or\n"
+        return shop_info
+    
+    def buy_item(self, item_name):
+        if not self.current_shop or self.current_shop not in SHOPS:
+            return "Vous n'êtes pas dans un magasin !"
+        shop_data = SHOPS[self.current_shop]
+        shop_items = shop_data.get("items", [])
+        if item_name not in shop_items:
+            return f"{item_name} n'est pas vendu ici !"
+        item_data = ITEMS.get(item_name, {})
+        price = item_data.get("price", 0)
+        if self.player_stats["gold"] < price:
+            return f"Vous n'avez pas assez d'or ! (Prix: {price}, Or: {self.player_stats['gold']})"
+        self.player_stats["gold"] -= price
+        self.inventory[item_name] = self.inventory.get(item_name, 0) + 1
+        return f"Vous avez acheté {item_name} pour {price} or !"
+    
+    def sell_item(self, item_name):
+        if item_name not in self.inventory or self.inventory[item_name] <= 0:
+            return f"Vous n'avez pas {item_name} !"
+        if item_name not in ITEMS:
+            return f"Objet {item_name} introuvable !"
+        for slot, equipped_item in self.equipped.items():
+            if equipped_item == item_name:
+                return f"Vous devez d'abord déséquiper {item_name} !"
+        item_data = ITEMS[item_name]
+        price = item_data.get("sell_price", item_data.get("price", 10) // 2)
+        self.player_stats["gold"] += price
+        self.inventory[item_name] -= 1
+        if self.inventory[item_name] <= 0:
+            del self.inventory[item_name]
+        return f"Vous avez vendu {item_name} pour {price} or !"
+    
+    def get_current_shop_items(self):
+        if not self.current_shop or self.current_shop not in SHOPS:
+            return []
+        shop_data = SHOPS[self.current_shop]
+        shop_items = []
+        for item_name in shop_data.get("items", []):
+            item_data = ITEMS.get(item_name, {})
+            shop_items.append({
+                "name": item_name,
+                "price": item_data.get("price", 0)
+            })
+        return shop_items
+    
+    def get_available_skills_for_level(self):
+        available_skills = {}
+        if self.player_class not in SKILLS:
+            return available_skills
+        class_skills = SKILLS[self.player_class]
+        current_level = self.player_stats["level"]
+        for skill_name, skill_data in class_skills.items():
+            unlock_level = skill_data.get("unlocked_at", 1)
+            if current_level >= unlock_level:
+                available_skills[skill_name] = skill_data
+        return available_skills
+    
+    def get_upcoming_skills(self):
+        upcoming = []
+        if self.player_class not in PROGRESSIVE_SKILLS:
+            return upcoming
+        class_skills = PROGRESSIVE_SKILLS[self.player_class]
+        current_level = self.player_stats["level"]
+        for skill_data in class_skills:
+            unlock_level = skill_data.get("level", 1)
+            if current_level < unlock_level:
+                upcoming.append({
+                    "name": skill_data.get("name", ""),
+                    "level": unlock_level,
+                    "description": skill_data.get("description", ""),
+                    "mana_cost": skill_data.get("mana_cost", 0),
+                    "icon": skill_data.get("icon", "✨")
+                })
+        return upcoming
+    
+    def unlock_progressive_skills(self):
+        if self.player_class not in PROGRESSIVE_SKILLS:
+            return
+        progressive = PROGRESSIVE_SKILLS[self.player_class]
+        current_level = self.player_stats["level"]
+        if self.player_class not in self.skills_learned:
+            self.skills_learned[self.player_class] = {}
+        for skill_data in progressive:
+            skill_name = skill_data.get("name", "")
+            unlock_level = skill_data.get("level", 1)
+            if current_level >= unlock_level and skill_name:
+                self.skills_learned[self.player_class][skill_name] = True
+    
+    def get_navigation_map(self):
+        if self.current_location not in LOCATIONS:
+            return {
+                "current": self.current_location,
+                "current_name": "Localisation inconnue",
+                "available_exits": []
+            }
+        location_data = LOCATIONS[self.current_location]
+        exits = []
+        if location_data.get("exits"):
+            for direction, destination in location_data["exits"].items():
+                if destination in LOCATIONS:
+                    dest_data = LOCATIONS[destination]
+                    exits.append({
+                        "direction": direction.upper(),
+                        "location_id": destination,
+                        "location_name": dest_data.get("name", destination),
+                        "description": dest_data.get("short_description", "")
+                    })
+        return {
+            "current": self.current_location,
+            "current_name": location_data.get("name", "Unknown"),
+            "available_exits": exits
+        }
+    
+    def get_world_map(self):
+        locations_map = []
+        for location_id in LOCATIONS.keys():
+            location_data = LOCATIONS[location_id]
+            x = location_data.get("x", 50)
+            y = location_data.get("y", 50)
+            locations_map.append({
+                "id": location_id,
+                "name": location_data.get("name", location_id),
+                "visited": location_id in self.visited_locations,
+                "is_current": location_id == self.current_location,
+                "x": x,
+                "y": y
+            })
+        return {
+            "locations": locations_map,
+            "visited_count": len(self.visited_locations),
+            "total_count": len(LOCATIONS)
+        }
+    
+    def reset_game(self):
+        self.__init__()
+        return "Le jeu a été réinitialisé !"
+    
+    def reset_health(self):
+        self.player_stats["health"] = self.player_stats["max_health"]
+        self.current_location = GAME_CONFIG["starting_location"]
+    
+    def get_player_stats(self):
+        stats = {
+            "level": self.player_stats["level"],
+            "exp": self.player_stats["exp"],
+            "exp_for_next_level": self.player_stats["exp_for_next_level"],
+            "health": self.player_stats["health"],
+            "max_health": self.player_stats["max_health"],
+            "mana": self.player_stats["mana"],
+            "max_mana": self.player_stats["max_mana"],
+            "attack": self.player_stats["attack"],
+            "defense": self.player_stats["defense"],
+            "gold": self.player_stats["gold"],
+            "weapon": self.equipped.get("weapon", "Mains nues"),
+            "armor": self.equipped.get("armor", "Aucune")
+        }
+        return stats
+    
+    def get_player_stats_display(self):
+        stats = self.get_player_stats()
+        display = ""
+        display += f"<strong>Niveau {stats['level']}</strong><br>"
+        display += f"Santé: {stats['health']}/{stats['max_health']}<br>"
+        display += f"Mana: {stats['mana']}/{stats['max_mana']}<br>"
+        display += f"Attaque: {stats['attack']}<br>"
+        display += f"Défense: {stats['defense']}<br>"
+        display += f"Or: {stats['gold']}<br>"
+        display += f"EXP: {stats['exp']}/{stats['exp_for_next_level']}"
+        return display
+    
+    def get_inventory_info(self):
+        inventory_info = {
+            "items": self.inventory.copy(),
+            "equipped": self.equipped.copy(),
+            "inventory_count": sum(self.inventory.values())
+        }
+        return inventory_info
+    
+    def get_quests_display(self):
+        quests_list = []
+        if not DAILY_QUESTS:
+            return quests_list
+        for quest_id, quest_data in DAILY_QUESTS.items():
+            target_count = quest_data.get('target_count', quest_data.get('target_gold', quest_data.get('target_exp', 1)))
+            quest_info = {
+                'id': quest_id,
+                'name': quest_id,
+                'icon': quest_data.get('icon', '📜'),
+                'description': quest_data.get('description', 'Pas de description'),
+                'reward_exp': quest_data.get('reward_exp', 0),
+                'reward_gold': quest_data.get('reward_gold', 0),
+                'reward_item': quest_data.get('reward_item', ''),
+                'progress': self.quest_progress.get(quest_id, 0),
+                'target': target_count,
+                'completed': quest_id in self.completed_quests
+            }
+            quests_list.append(quest_info)
+        return quests_list
+    
+    def close_shop(self):
+        self.current_shop = None
+        return "Magasin fermé."
+    
+    def talk_to_npc(self, npc_name):
+        if npc_name not in NPCS_DIALOGUE:
+            return f"NPC {npc_name} non trouvé."
+        npc_dialogue = NPCS_DIALOGUE[npc_name]
+        dialogue_text = npc_dialogue.get("dialogue", "...")
+        return f"<p><strong>{npc_name}:</strong> {dialogue_text}</p>"
+    
+    def use_skill(self, skill_name):
+        if not self.player_class or self.player_class not in SKILLS:
+            return "Vous n'avez pas de classe!"
+        class_skills = SKILLS[self.player_class]
+        if skill_name not in class_skills:
+            return f"Compétence {skill_name} non trouvée!"
+        skill_data = class_skills[skill_name]
+        mana_cost = skill_data.get("mana_cost", 0)
+        if self.player_stats["mana"] < mana_cost:
+            return f"Pas assez de mana! (Besoin: {mana_cost}, Mana: {self.player_stats['mana']})"
+        self.player_stats["mana"] -= mana_cost
+        
+        # Gestion soin
+        if skill_data.get("heal"):
+            healed = self.heal(skill_data["heal"])
+            return f"Vous avez utilisé {skill_name}! Santé restaurée: {healed} HP"
+        
+        # Gestion défense boost
+        if skill_data.get("defense_boost"):
+            boost = skill_data["defense_boost"]
+            duration = skill_data.get("duration", 3)
+            self.temporary_buffs["defense"] = boost
+            return f"Vous avez utilisé {skill_name}! Défense augmentée de +{boost} pendant {duration} tours!"
+        
+        # Gestion attaque boost
+        if skill_data.get("attack_multiplier"):
+            boost_mult = skill_data["attack_multiplier"]
+            duration = skill_data.get("duration", 2)
+            bonus = int(self.player_stats["attack"] * (boost_mult - 1))
+            self.temporary_buffs["attack"] = bonus
+            return f"Vous avez utilisé {skill_name}! Attaque augmentée de +{bonus} pendant {duration} tours!"
+        
+        # Gestion damage reduction
+        if skill_data.get("damage_reduction"):
+            reduction = skill_data.get("damage_reduction", 0.5)
+            duration = skill_data.get("duration", 2)
+            self.temporary_buffs["defense"] = int(self.player_stats.get("defense", 0) * reduction)
+            return f"Vous avez utilisé {skill_name}! Dégâts réduits de {int(reduction * 100)}% pendant {duration} tours!"
+        
+        damage_multiplier = skill_data.get("damage_multiplier", 1.0)
+        hits = skill_data.get("hits", 1)
+        total_damage = 0
+        
+        if self.in_combat and self.current_enemy:
+            result = f"Vous avez utilisé {skill_name}!\n"
+            for i in range(hits):
+                hit_damage = int(self.player_stats["attack"] * damage_multiplier)
+                hit_damage = max(1, hit_damage - self.current_enemy.get("defense", 0) // 2)
+                self.current_enemy["health"] -= hit_damage
+                total_damage += hit_damage
+                result += f"Hit {i+1}: {hit_damage} dégâts\n"
+            
+            self.enemy_health = self.current_enemy.get("health", 0)
+            result += f"Dégâts totaux: {total_damage}\n"
+            
+            if self.current_enemy["health"] <= 0:
+                loot = self.get_loot(self.current_enemy.get("level", 1))
+                exp_gain = self.current_enemy.get("exp_reward", 50)
+                gold_gain = self.current_enemy.get("gold_reward", 20)
+                self.player_stats["gold"] += gold_gain
+                self.add_exp(exp_gain)
+                self.total_enemies_defeated += 1
+                
+                if self.current_enemy.get("is_boss"):
+                    self.boss_defeated[self.current_enemy["name"]] = True
+                
+                result += f"\n{self.current_enemy['name']} a été vaincu!\n"
+                result += f"Expérience gagnée: {exp_gain}, Or gagné: {gold_gain}\n"
+                
+                if loot:
+                    for item, qty in loot.items():
+                        self.inventory[item] = self.inventory.get(item, 0) + qty
+                        result += f"Butin: {item} (x{qty})\n"
+                
+                self.in_combat = False
+                self.current_enemy = None
+                self.enemy_health = 0
+                self.enemy_max_health = 0
+            return result
+        return f"Vous avez utilisé {skill_name}! (Hors combat)"
+    
+    def flee_combat(self):
+        if not self.in_combat:
+            return "Vous n'êtes pas en combat!"
+        if random.random() < 0.5:
+            self.in_combat = False
+            self.current_enemy = None
+            self.enemy_health = 0
+            self.enemy_max_health = 0
+            return "Vous avez réussi à fuir!"
+        enemy_damage = self.current_enemy.get("attack", 5) + random.randint(-2, 3)
+        self.take_damage(enemy_damage)
+        return f"Vous n'avez pas pu fuir! L'ennemi vous a infligé {enemy_damage} dégâts."
+    
+    def drop_item(self, item_name):
+        if item_name not in self.inventory or self.inventory[item_name] <= 0:
+            return False
+        self.inventory[item_name] -= 1
+        if self.inventory[item_name] <= 0:
+            del self.inventory[item_name]
+        return True
+    
+    def set_difficulty(self, difficulty):
+        if difficulty not in DIFFICULTY_SETTINGS:
+            return "Difficulté invalide!"
+        self.difficulty = difficulty
+        settings = DIFFICULTY_SETTINGS[difficulty]
+        if difficulty == "facile":
+            self.boss_spawn_chance = 0.05
+        elif difficulty == "moyen":
+            self.boss_spawn_chance = 0.15
+        elif difficulty == "difficile":
+            self.boss_spawn_chance = 0.30
+        return f"Difficulté définie à {difficulty}!"
+    
+    def complete_quest(self, quest_id):
+        if quest_id not in DAILY_QUESTS:
+            return False
+        if quest_id in self.completed_quests:
+            return False
+        quest_data = DAILY_QUESTS[quest_id]
+        exp_reward = quest_data.get("reward_exp", 0)
+        gold_reward = quest_data.get("reward_gold", 0)
+        self.add_exp(exp_reward)
+        self.player_stats["gold"] += gold_reward
+        if quest_data.get("reward_item"):
+            reward_item = quest_data["reward_item"]
+            self.inventory[reward_item] = self.inventory.get(reward_item, 0) + 1
+        self.completed_quests.append(quest_id)
+        return True
+    
+    def check_win(self):
+        if self.player_stats["level"] >= 50:
+            self.game_won = True
+        if len(self.boss_defeated) >= len(BOSSES):
+            self.game_won = True
+        return self.game_won
+    
+    def toggle_options(self):
+        self.show_options = not self.show_options
+        return self.show_options
+    
+    def toggle_inventory(self):
+        self.show_inventory = not self.show_inventory
+        return self.show_inventory
+    
+    def toggle_quests(self):
+        self.show_quests = not self.show_quests
+        return self.show_quests
+    
+    def toggle_skills(self):
+        self.show_skills = not self.show_skills
+        return self.show_skills

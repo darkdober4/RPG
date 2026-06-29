@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GamePython RPG Adventure</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #00ff00; min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
+        .game-container { background: #000; border: 3px solid #00ff00; border-radius: 10px; padding: 30px; max-width: 900px; width: 90%; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); overflow-y: auto; max-height: 90vh; }
+        .title { text-align: center; font-size: 2em; font-weight: bold; margin-bottom: 30px; text-shadow: 0 0 10px #00ff00; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: #000; border: 3px solid #aa00ff; border-radius: 10px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 0 30px rgba(170, 0, 255, 0.5); }
+        .modal-title { color: #aa00ff; font-size: 1.8em; font-weight: bold; margin-bottom: 25px; text-align: center; text-shadow: 0 0 10px #aa00ff; }
+        .modal-section { margin-bottom: 25px; }
+        .modal-section-title { color: #aa00ff; font-weight: bold; margin-bottom: 10px; font-size: 1.1em; }
+        .difficulty-modal-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .difficulty-modal-btn { padding: 12px; font-weight: bold; font-size: 0.9em; border-radius: 5px; border: 2px solid; cursor: pointer; transition: all 0.3s; font-family: 'Courier New', monospace; text-align: center; }
+        .difficulty-modal-btn.easy { background: #00aa00; border-color: #00ff00; color: #000; }
+        .difficulty-modal-btn.easy:hover, .difficulty-modal-btn.easy.active { background: #00ff00; box-shadow: 0 0 15px #00ff00; }
+        .difficulty-modal-btn.medium { background: #ffaa00; border-color: #ffff00; color: #000; }
+        .difficulty-modal-btn.medium:hover, .difficulty-modal-btn.medium.active { background: #ffff00; box-shadow: 0 0 15px #ffaa00; }
+        .difficulty-modal-btn.hard { background: #ff4400; border-color: #ff6600; color: #fff; }
+        .difficulty-modal-btn.hard:hover, .difficulty-modal-btn.hard.active { background: #ff6600; box-shadow: 0 0 15px #ff6600; }
+        .modal-close-btn { width: 100%; padding: 12px; background: #aa00ff; color: #fff; border: 2px solid #aa00ff; border-radius: 5px; font-weight: bold; font-size: 1em; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.3s; }
+        .modal-close-btn:hover { background: #ff00ff; box-shadow: 0 0 15px #aa00ff; }
+        .game-content { background: #0a0a0a; border: 1px solid #00ff00; padding: 20px; margin-bottom: 20px; min-height: 200px; border-radius: 5px; }
+        .location-title { color: #ffff00; font-size: 1.5em; font-weight: bold; margin-bottom: 10px; }
+        .location-description { color: #00ff00; margin-bottom: 15px; line-height: 1.6; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; padding: 15px; background: #0f0f0f; border: 1px solid #00aa00; border-radius: 5px; }
+        .stat-item { display: flex; justify-content: space-between; padding: 8px; background: #1a1a1a; border-radius: 3px; }
+        .stat-label { color: #00ff00; font-weight: bold; }
+        .stat-value { color: #ffff00; }
+        .health-bar { width: 100%; height: 20px; background: #1a0000; border: 1px solid #ff0000; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+        .health-bar-fill { height: 100%; background: linear-gradient(90deg, #ff0000, #ff6600); transition: width 0.3s; }
+        .exp-bar { width: 100%; height: 18px; background: #001a33; border: 1px solid #00aaff; border-radius: 3px; margin-top: 5px; overflow: hidden; box-shadow: inset 0 0 10px rgba(0, 170, 255, 0.2); }
+        .exp-bar-fill { height: 100%; background: linear-gradient(90deg, #0066ff, #00ffff); transition: width 0.5s ease; box-shadow: 0 0 10px rgba(0, 255, 255, 0.6); }
+        .exp-text { font-size: 0.85em; color: #00aaff; margin-top: 3px; text-align: center; }
+        .exp-label { color: #00aaff; font-weight: bold; }
+        .combat-ui { background: linear-gradient(135deg, rgba(30, 0, 0, 0.8), rgba(60, 0, 0, 0.8)); border: 2px solid #ff3333; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 20px rgba(255, 50, 50, 0.4); }
+        .combat-title { color: #ff3333; font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center; text-transform: uppercase; }
+        .combatants { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+        .combatant { flex: 1; background: rgba(0, 0, 0, 0.5); border: 1px solid #666; border-radius: 6px; padding: 15px; }
+        .combatant-header { font-weight: bold; margin-bottom: 10px; font-size: 14px; }
+        .combatant-player .combatant-header { color: #00ff00; }
+        .combatant-enemy .combatant-header { color: #ff6666; }
+        .combatant-enemy.boss .combatant-header { color: #ffaa00; font-size: 1.1em; text-shadow: 0 0 15px #ffaa00; animation: boss-glow 2s ease-in-out infinite; }
+        @keyframes boss-glow { 0%, 100% { text-shadow: 0 0 10px #ffaa00; } 50% { text-shadow: 0 0 25px #ff6600; } }
+        .combatant-enemy.boss { border-color: #ffaa00; box-shadow: 0 0 20px rgba(255, 170, 0, 0.3), inset 0 0 15px rgba(255, 100, 0, 0.1); }
+        .combatant-health { margin-bottom: 8px; }
+        .combat-health-bar { width: 100%; height: 25px; background: #1a0000; border: 1px solid #ff6666; border-radius: 3px; overflow: hidden; margin-top: 5px; }
+        .combat-health-bar.boss-bar { background: #0a0a00; border-color: #ffaa00; box-shadow: 0 0 10px rgba(255, 170, 0, 0.3); }
+        .combat-health-fill { height: 100%; background: linear-gradient(90deg, #00ff00, #00aa00); transition: width 0.3s; }
+        .combatant-enemy .combat-health-fill { background: linear-gradient(90deg, #ff6666, #ff3333); }
+        .combat-health-text { font-size: 11px; color: #aaa; margin-top: 3px; }
+        .combat-log { background: rgba(0, 0, 0, 0.7); border: 1px solid #444; border-radius: 5px; padding: 12px; height: 120px; overflow-y: auto; margin-bottom: 15px; font-size: 12px; line-height: 1.6; }
+        .combat-action-player { color: #00ff00; margin-bottom: 5px; }
+        .combat-action-enemy { color: #ff6666; margin-bottom: 5px; }
+        .combat-action-damage { color: #ff9900; font-weight: bold; }
+        .combat-action-miss { color: #ffff00; font-weight: bold; }
+        .shop-section { background: #1a1a0a; border: 2px solid #ffaa00; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
+        .shop-title { color: #ffaa00; font-weight: bold; margin-bottom: 10px; font-size: 1.1em; }
+        .shop-items { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+        .shop-item { background: #0a0a0a; border: 1px solid #ffaa00; padding: 10px; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
+        .shop-item-info { display: flex; flex-direction: column; flex: 1; }
+        .shop-item-name { color: #ffaa00; font-weight: bold; }
+        .shop-item-price { color: #ffff00; font-size: 0.9em; }
+        .shop-buy-btn { background: #ffaa00; color: #000; border: 1px solid #ffaa00; padding: 8px 15px; border-radius: 3px; font-weight: bold; cursor: pointer; transition: all 0.3s; margin-left: 10px; white-space: nowrap; }
+        .shop-buy-btn:hover { background: #ffff00; box-shadow: 0 0 10px #ffaa00; }
+        .shop-buy-btn:disabled { background: #666; cursor: not-allowed; opacity: 0.5; }
+        .difficulty-section { background: #0a0a1a; border: 2px solid #aa00ff; padding: 25px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+        .difficulty-title { color: #aa00ff; font-size: 1.3em; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #aa00ff; }
+        .difficulty-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .difficulty-btn { padding: 15px; font-weight: bold; font-size: 1em; border-radius: 5px; border: 2px solid; cursor: pointer; transition: all 0.3s; font-family: 'Courier New', monospace; }
+        .difficulty-btn.easy { background: #00aa00; border-color: #00ff00; color: #000; }
+        .difficulty-btn.easy:hover { background: #00ff00; box-shadow: 0 0 15px #00ff00; }
+        .difficulty-btn.medium { background: #ffaa00; border-color: #ffff00; color: #000; }
+        .difficulty-btn.medium:hover { background: #ffff00; box-shadow: 0 0 15px #ffaa00; }
+        .difficulty-btn.hard { background: #ff4400; border-color: #ff6600; color: #fff; }
+        .difficulty-btn.hard:hover { background: #ff6600; box-shadow: 0 0 15px #ff6600; }
+        .actions { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 20px; }
+        .action-btn { padding: 12px; background: #00aa00; color: #000; border: 2px solid #00ff00; border-radius: 5px; font-family: 'Courier New', monospace; font-weight: bold; font-size: 1em; cursor: pointer; transition: all 0.3s; }
+        .action-btn:hover { background: #00ff00; box-shadow: 0 0 15px #00ff00; transform: scale(1.02); }
+        .action-btn.fight { background: #ff4400; color: #fff; border-color: #ff6600; }
+        .action-btn.fight:hover { background: #ff6600; box-shadow: 0 0 15px #ff6600; }
+        .action-btn.talk { background: #0066ff; color: #fff; border-color: #00aaff; }
+        .action-btn.talk:hover { background: #00aaff; box-shadow: 0 0 15px #00aaff; }
+        .message { background: #1a1a1a; border-left: 3px solid #ffff00; padding: 15px; margin-bottom: 15px; border-radius: 3px; white-space: pre-wrap; color: #ffff00; }
+        .combat-info { background: #2a0000; border: 2px solid #ff0000; padding: 15px; border-radius: 5px; margin-bottom: 15px; color: #ff6666; }
+        .inventory-section { background: #0a1a0a; border: 2px solid #00aa00; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
+        .inventory-title { color: #00ff00; font-weight: bold; margin-bottom: 10px; }
+        .inventory-items { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .inventory-item { background: #1a1a1a; padding: 8px; border: 1px solid #00aa00; border-radius: 3px; font-size: 0.9em; color: #00ff00; }
+        .inventory-empty { color: #666; font-style: italic; }
+        .equipped-section { background: #1a0a1a; border: 1px solid #aa00aa; padding: 10px; border-radius: 3px; margin-top: 10px; font-size: 0.9em; }
+        .equipped-item { color: #ff00ff; margin: 5px 0; }
+        .victory { text-align: center; color: #ffff00; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 10px #ffff00; }
+        .game-over { text-align: center; color: #ff0000; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 10px #ff0000; }
+        .restart-btn { width: 100%; padding: 15px; background: #ffaa00; color: #000; border: 2px solid #ffff00; border-radius: 5px; font-family: 'Courier New', monospace; font-weight: bold; font-size: 1.1em; cursor: pointer; margin-top: 20px; }
+        .restart-btn:hover { background: #ffff00; box-shadow: 0 0 15px #ffff00; }
+        .closeInventoryBtn { position: absolute; top: 10px; right: 10px; }
+        .navigation-section { background: linear-gradient(135deg, #1a3a2e 0%, #0d2818 100%); border: 2px solid #00ff88; border-radius: 8px; padding: 20px; margin: 20px 0; box-shadow: 0 0 15px rgba(0, 255, 136, 0.3); }
+        .navigation-title { color: #00ff88; font-size: 1.3em; font-weight: bold; margin-bottom: 15px; text-shadow: 0 0 10px #00ff88; text-align: center; }
+        .navigation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .location-link { background: rgba(0, 200, 136, 0.1); border: 2px solid #00cc88; border-radius: 5px; padding: 15px; cursor: pointer; transition: all 0.3s ease; text-decoration: none; }
+        .location-link:hover { background: rgba(0, 255, 136, 0.2); border-color: #00ff88; box-shadow: 0 0 10px rgba(0, 255, 136, 0.5); transform: translateY(-2px); }
+        .location-direction { color: #ffaa00; font-weight: bold; font-size: 0.85em; margin-bottom: 5px; }
+        .location-name { color: #00ff88; font-weight: bold; margin-bottom: 8px; }
+        .location-desc { color: #aaa; font-size: 0.75em; line-height: 1.3; }
+        .world-map-container { background: linear-gradient(135deg, #0a1a0a 0%, #0d2208 100%); border: 2px solid #00cc44; border-radius: 8px; padding: 15px; position: fixed; top: 20px; right: 20px; width: 320px; height: 280px; z-index: 500; box-shadow: 0 0 20px rgba(0, 204, 68, 0.3); display: flex; flex-direction: column; }
+        .world-map-title { color: #00ff88; font-size: 1em; font-weight: bold; margin-bottom: 8px; text-align: center; text-shadow: 0 0 10px #00ff88; }
+        .world-map { background: #000; border: 1px solid #004400; border-radius: 5px; position: relative; width: 100%; flex: 1; overflow: hidden; }
+        .map-location { position: absolute; width: 24px; height: 24px; border: 2px solid #00aa44; border-radius: 50%; background: rgba(0, 170, 68, 0.1); display: flex; align-items: center; justify-content: center; font-size: 8px; color: #00ff88; font-weight: bold; transition: all 0.3s ease; cursor: default; }
+        .map-location:hover { background: rgba(0, 255, 136, 0.2); border-color: #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.5); }
+        .map-location.current { background: rgba(255, 100, 0, 0.3); border-color: #ffaa00; border-width: 2px; box-shadow: 0 0 20px rgba(255, 170, 0, 0.7); animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+        .map-location-name { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #00ff88; padding: 2px 4px; border-radius: 3px; font-size: 7px; white-space: nowrap; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .map-location:hover .map-location-name { opacity: 1; }
+        @media (max-width: 768px) { .world-map-container { width: 280px; height: 240px; top: 10px; right: 10px; } }
+    </style>
+    <script>
+        function closeInventory() {
+            fetch('/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action_type=toggle_inventory'
+            }).then(() => { location.reload(); });
+        }
+        function closeQuests() {
+            fetch('/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action_type=toggle_quests'
+            }).then(() => { location.reload(); });
+        }
+        function closeSkills() {
+            fetch('/action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action_type=toggle_skills'
+            }).then(() => { location.reload(); });
+        }
+    </script>
+</head>
+<body>
+    {% if game_state.show_options %}
+    <div class="modal-overlay">
+        <div class="modal">
+            <div class="modal-title">⚙️ OPTIONS</div>
+            <div class="modal-section">
+                <div class="modal-section-title">DIFFICULTE:</div>
+                <div class="difficulty-modal-buttons">
+                    <form method="post" action="/action" style="width: 100%;">
+                        <input type="hidden" name="action_type" value="set_difficulty">
+                        <input type="hidden" name="action_value" value="facile">
+                        <button type="submit" class="difficulty-modal-btn easy {% if game_state.difficulty == 'facile' %}active{% endif %}">FACILE<br><span style="font-size: 0.7em;">+1 à +2</span></button>
+                    </form>
+                    <form method="post" action="/action" style="width: 100%;">
+                        <input type="hidden" name="action_type" value="set_difficulty">
+                        <input type="hidden" name="action_value" value="moyen">
+                        <button type="submit" class="difficulty-modal-btn medium {% if game_state.difficulty == 'moyen' %}active{% endif %}">MOYEN<br><span style="font-size: 0.7em;">+0 à +5</span></button>
+                    </form>
+                    <form method="post" action="/action" style="width: 100%;">
+                        <input type="hidden" name="action_type" value="set_difficulty">
+                        <input type="hidden" name="action_value" value="difficile">
+                        <button type="submit" class="difficulty-modal-btn hard {% if game_state.difficulty == 'difficile' %}active{% endif %}">DIFFICILE<br><span style="font-size: 0.7em;">+0 à +8</span></button>
+                    </form>
+                </div>
+            </div>
+            <form method="post" action="/action">
+                <input type="hidden" name="action_type" value="toggle_options">
+                <button type="submit" class="modal-close-btn">FERMER OPTIONS</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="game-container">
+        <div class="title">[ GAMEPYTHON RPG ADVENTURE ]</div>
+
+        {% if game_state.game_won %}
+            <div class="game-content">
+                <div class="victory">*** VICTOIRE! ***<br>Vous avez trouve le tresor et sauve le monde!<br>Bravo aventurier!</div>
+                <form method="post" action="/restart"><button type="submit" class="restart-btn">RECOMMENCER</button></form>
+            </div>
+        {% elif game_state.game_over %}
+            <div class="game-content">
+                <div class="game-over">*** GAME OVER ***<br>Vous avez ete vaincu...<br>La fin de votre voyage...</div>
+                <form method="post" action="/restart"><button type="submit" class="restart-btn">RECOMMENCER</button></form>
+            </div>
+        {% elif not game_state.player_class_chosen %}
+            <div class="game-content" style="text-align: center; padding: 40px 0;">
+                <h1 style="color: #00ff00; font-size: 2.5em; margin-bottom: 30px; text-shadow: 0 0 20px #00ff00;">⚔️ CHOISISSEZ VOTRE CLASSE ⚔️</h1>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    {% for class_name, class_data in game_state.classes.items() %}
+                        <a href="/choose-class/{{ class_name }}" style="text-decoration: none;">
+                            <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #00d4ff; border-radius: 10px; padding: 20px; cursor: pointer; transition: all 0.3s ease; height: 100%;" onmouseover="this.style.boxShadow='0 0 20px rgba(0, 212, 255, 0.8)'; this.style.borderColor='#00ff88';" onmouseout="this.style.boxShadow='none'; this.style.borderColor='#00d4ff';">
+                                <div style="font-size: 3em; margin-bottom: 15px;">{% if class_name == 'Guerrier' %}⚔️{% elif class_name == 'Mage' %}🔥{% else %}🏹{% endif %}</div>
+                                <h3 style="color: #00ff88; font-size: 1.5em; margin: 10px 0;">{{ class_name }}</h3>
+                                <p style="color: #aaa; font-size: 0.9em; margin: 10px 0; min-height: 40px;">{{ class_data.description }}</p>
+                                <div style="background: rgba(0, 212, 255, 0.1); padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.85em;">
+                                    <div style="color: #00ff88; margin: 5px 0;">{{ class_data.bonus }}</div>
+                                    <div style="color: #ffaa00; margin: 5px 0; font-size: 0.8em;">{{ class_data.skill }}</div>
+                                </div>
+                                <div style="margin-top: 15px;">
+                                    <button type="button" style="background: linear-gradient(135deg, #00d4ff, #00ff88); color: #000; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1em;">CHOISIR</button>
+                                </div>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% else %}
+            <div class="stats">
+                <div class="stat-item"><span class="stat-label">Classe:</span><span class="stat-value">{{ game_state.player_class }}</span></div>
+                <div class="stat-item"><span class="stat-label">Sante:</span><span class="stat-value">{{ game_state.player_stats.health }} / {{ game_state.player_stats.max_health }}</span></div>
+                <div class="stat-item"><span class="stat-label">Mana:</span><span class="stat-value">{{ game_state.player_stats.mana }} / {{ game_state.player_stats.max_mana }}</span></div>
+                <div class="stat-item"><span class="stat-label">Attaque:</span><span class="stat-value">{{ game_state.player_stats.attack }}{% if game_state.temporary_buffs.attack %} <span style="color: #ffaa00;">+{{ game_state.temporary_buffs.attack }}</span>{% endif %}</span></div>
+                <div class="stat-item"><span class="stat-label">Defense:</span><span class="stat-value">{{ game_state.player_stats.defense }}{% if game_state.temporary_buffs.defense %} <span style="color: #ffaa00;">+{{ game_state.temporary_buffs.defense }}</span>{% endif %}</span></div>
+                <div class="stat-item"><span class="stat-label">Niveau:</span><span class="stat-value">{{ game_state.player_stats.level }}</span></div>
+                <div class="stat-item"><span class="stat-label">Oro:</span><span class="stat-value">{{ game_state.player_stats.gold }}</span></div>
+                <div class="stat-item"><span class="stat-label">Arme:</span><span class="stat-value">{{ game_state.player_stats.weapon }}</span></div>
+                <div class="stat-item"><span class="stat-label">Armure:</span><span class="stat-value">{{ game_state.player_stats.armor }}</span></div>
+                <div class="stat-item"><span class="stat-label">Difficulte:</span><span class="stat-value">{{ game_state.difficulty | upper }}</span></div>
+                <div style="grid-column: 1 / -1;">
+                    <div class="health-bar">
+                        <div class="health-bar-fill" style="width: {% if game_state.player_stats.max_health > 0 %}{{ (game_state.player_stats.health / game_state.player_stats.max_health) * 100 }}{% else %}0{% endif %}%"></div>
+                    </div>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <div class="exp-label">Expérience:</div>
+                    <div class="exp-bar">
+                        <div class="exp-bar-fill" style="width: {% if game_state.player_stats.exp_for_next_level > 0 %}{{ (game_state.player_stats.exp / game_state.player_stats.exp_for_next_level) * 100 }}{% else %}0{% endif %}%"></div>
+                    </div>
+                    <div class="exp-text">{{ game_state.player_stats.exp }} / {{ game_state.player_stats.exp_for_next_level }} XP</div>
+                </div>
+            </div>
+
+            <div class="game-content">
+                {{ game_state.location_description | safe }}
+
+                {% if not game_state.in_combat %}
+                    <div class="navigation-section">
+                        <div class="navigation-title">🗺️ NAVIGATION - {{ game_state.navigation_map.current_name }}</div>
+                        {% if game_state.navigation_map.available_exits|length > 0 %}
+                            <div class="navigation-grid">
+                                {% for exit in game_state.navigation_map.available_exits %}
+                                    <form method="post" action="/action" style="width: 100%; height: 100%;">
+                                        <input type="hidden" name="action_type" value="move">
+                                        <input type="hidden" name="action_value" value="{{ exit.location_id }}">
+                                        <button type="submit" class="location-link" style="width: 100%; display: flex; flex-direction: column; align-items: flex-start;">
+                                            <div class="location-direction">↠ {{ exit.direction }}</div>
+                                            <div class="location-name">{{ exit.location_name }}</div>
+                                            <div class="location-desc">{{ exit.description }}</div>
+                                        </button>
+                                    </form>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div style="text-align: center; color: #888; font-style: italic;">Vous êtes dans une impasse. Aucune sortie visible...</div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if game_state.in_combat %}
+                    <div class="combat-ui">
+                        <div class="combat-title">⚔️ EN COMBAT ⚔️</div>
+                        <div class="combatants">
+                            <div class="combatant combatant-player">
+                                <div class="combatant-header">🛡️ VOUS</div>
+                                <div class="combatant-health">
+                                    <div class="combat-health-bar">
+                                        <div class="combat-health-fill" style="width: {% if game_state.player_stats.max_health > 0 %}{{ (game_state.player_stats.health / game_state.player_stats.max_health) * 100 }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <div class="combat-health-text">{{ game_state.player_stats.health }} / {{ game_state.player_stats.max_health }} PV</div>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 12px; color: #aaa;">
+                                    <div>⚡ Attaque: <span style="color: #00ff00;">{{ game_state.player_stats.attack }}</span></div>
+                                    <div>🛡️ Défense: <span style="color: #00ff00;">{{ game_state.player_stats.defense }}</span></div>
+                                </div>
+                            </div>
+
+                            <div class="combatant combatant-enemy {% if game_state.is_boss_fight %}boss{% endif %}">
+                                <div class="combatant-header">
+                                    {% if game_state.is_boss_fight %}
+                                        <span style="color: #ffaa00; font-size: 1.1em;">⚠️ BOSS LÉGENDAIRE! ⚠️</span><br>
+                                        <span style="color: #ff6600; font-weight: bold;">{{ game_state.current_enemy | upper }} - NIV {{ game_state.enemy_level }}</span>
+                                    {% else %}
+                                        👹 {{ game_state.current_enemy | upper }} - NIV {{ game_state.enemy_level }}
+                                    {% endif %}
+                                </div>
+                                {% if game_state.is_boss_fight %}
+                                    <div style="background: rgba(255, 170, 0, 0.1); padding: 8px; border-radius: 5px; margin-bottom: 8px; border-left: 3px solid #ffaa00; font-size: 11px;">
+                                        <div style="color: #ffaa00; font-weight: bold;">⚔️ BOSS - Niveau {{ game_state.enemy_level }}</div>
+                                    </div>
+                                {% endif %}
+                                <div class="combatant-health">
+                                    <div class="combat-health-bar {% if game_state.is_boss_fight %}boss-bar{% endif %}">
+                                        <div class="combat-health-fill" style="width: {% if game_state.enemy_max_health > 0 %}{{ (game_state.enemy_health / game_state.enemy_max_health) * 100 }}{% else %}0{% endif %}%; background: {% if game_state.is_boss_fight %}linear-gradient(90deg, #ff6600, #ffaa00){% endif %};"></div>
+                                    </div>
+                                    <div class="combat-health-text">{{ game_state.enemy_health }} / {{ game_state.enemy_max_health }} PV</div>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 12px; color: #aaa;">
+                                    <div>⚡ Attaque: <span style="color: #ff6666;">{{ game_state.enemy_attack }}</span></div>
+                                    <div>🛡️ Défense: <span style="color: #ff6666;">{{ game_state.enemy_defense }}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if game_state.last_message %}
+                    <div class="message">{{ game_state.last_message }}</div>
+                {% endif %}
+
+                {% if game_state.current_shop %}
+                    <div class="shop-section">
+                        <div class="shop-title">[ MAGASIN: {{ game_state.current_shop | upper }} ]</div>
+                        <div class="shop-items">
+                            {% for item in game_state.shop_items %}
+                                <div class="shop-item">
+                                    <div class="shop-item-info">
+                                        <div class="shop-item-name">{{ item.name }}</div>
+                                        <div class="shop-item-price">{{ item.price }} or</div>
+                                    </div>
+                                    <form method="post" action="/action" style="display: flex; margin: 0;">
+                                        <input type="hidden" name="action_type" value="buy">
+                                        <input type="hidden" name="action_value" value="{{ item.name }}">
+                                        <button type="submit" class="shop-buy-btn" {% if game_state.player_stats.gold < item.price %}disabled{% endif %}>Acheter</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <form method="post" action="/action">
+                            <input type="hidden" name="action_type" value="close_shop">
+                            <button type="submit" class="action-btn" style="width: 100%;">Quitter le magasin</button>
+                        </form>
+                    </div>
+                {% endif %}
+
+            <div class="actions">
+                {% if game_state.in_combat %}
+                    <form method="post" action="/action">
+                        <input type="hidden" name="action_type" value="attack">
+                        <button type="submit" class="action-btn fight">Attaquer l'ennemi</button>
+                    </form>
+                    {% for skill_name, skill_data in game_state.player_skills.items() %}
+                        <form method="post" action="/action">
+                            <input type="hidden" name="action_type" value="use_skill">
+                            <input type="hidden" name="action_value" value="{{ skill_name }}">
+                            <button type="submit" class="action-btn" style="background: #6644ff; border-color: #6644ff; color: #fff;" title="Coûte {{ skill_data.mana_cost }} mana">
+                                {{ skill_data.icon }} {{ skill_name }} ({{ skill_data.mana_cost }} mana)
+                            </button>
+                        </form>
+                    {% endfor %}
+                    <form method="post" action="/action">
+                        <input type="hidden" name="action_type" value="flee">
+                        <button type="submit" class="action-btn">Fuir le combat</button>
+                    </form>
+                {% else %}
+                    {% for action in game_state.available_actions %}
+                        {% if action.type != 'move' %}
+                            <form method="post" action="/action">
+                                <input type="hidden" name="action_type" value="{{ action.type }}">
+                                <input type="hidden" name="action_value" value="{{ action.value }}">
+                                <button type="submit" class="action-btn {% if action.type == 'fight' %}fight{% elif action.type == 'talk' %}talk{% endif %}">{{ action.text }}</button>
+                            </form>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                <form method="post" action="/action" style="margin-top: 15px;">
+                    <input type="hidden" name="action_type" value="toggle_options">
+                    <button type="submit" class="action-btn" style="background: #aa00ff; border-color: #aa00ff; color: #fff;">⚙️ OPTIONS</button>
+                </form>
+                <form method="post" action="/action" style="margin-top: 5px;">
+                    <input type="hidden" name="action_type" value="toggle_inventory">
+                    <button type="submit" class="action-btn" style="background: #00aa88; border-color: #00aa88; color: #fff;">🎒 INVENTAIRE</button>
+                </form>
+                <form method="post" action="/action" style="margin-top: 5px;">
+                    <input type="hidden" name="action_type" value="toggle_quests">
+                    <button type="submit" class="action-btn" style="background: #ffaa00; border-color: #ffaa00; color: #000;">📜 QUÊTES ({{ game_state.completed_quests_count }}/3)</button>
+                </form>
+                <form method="post" action="/action" style="margin-top: 5px;">
+                    <input type="hidden" name="action_type" value="toggle_skills">
+                    <button type="submit" class="action-btn" style="background: #9966ff; border-color: #9966ff; color: #fff;">✨ COMPÉTENCES</button>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if game_state.show_inventory %}
+    <div class="modal-overlay" onclick="closeInventory()">
+        <div class="modal-content" style="width: 90%; max-width: 900px; background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); border-color: #00d4ff;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #00d4ff; margin: 0; font-size: 24px;">🎒 INVENTAIRE & ÉQUIPEMENT</h2>
+                <button onclick="closeInventory()" style="background: #ff4444; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 16px;">✕</button>
+            </div>
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1; background: rgba(0, 212, 255, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #00d4ff;">
+                    <h3 style="color: #00d4ff; margin-top: 0;">⚡ ÉQUIPEMENT ACTUEL</h3>
+                    <div style="background: rgba(255, 100, 0, 0.2); padding: 10px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #ff6400;">
+                        <div style="color: #ffaa00; font-weight: bold;">🗡️ ARME</div>
+                        {% if game_state.equipped.weapon %}
+                            <div style="color: #fff; margin-top: 5px;">
+                                <strong>{{ game_state.equipped.weapon }}</strong>
+                                <div style="color: #aaa; font-size: 12px; margin-top: 3px;">+{{ game_state.all_items[game_state.equipped.weapon].attack_bonus }} Attaque</div>
+                            </div>
+                            <form method="post" action="/action" style="margin-top: 8px;">
+                                <input type="hidden" name="action_type" value="unequip">
+                                <input type="hidden" name="action_value" value="weapon">
+                                <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Dés-équiper</button>
+                            </form>
+                        {% else %}
+                            <div style="color: #888; font-style: italic; margin-top: 5px;">Aucune arme équipée</div>
+                        {% endif %}
+                    </div>
+                    <div style="background: rgba(100, 150, 255, 0.2); padding: 10px; border-radius: 5px; border-left: 4px solid #6496ff;">
+                        <div style="color: #6496ff; font-weight: bold;">🛡️ ARMURE</div>
+                        {% if game_state.equipped.armor %}
+                            <div style="color: #fff; margin-top: 5px;">
+                                <strong>{{ game_state.equipped.armor }}</strong>
+                                <div style="color: #aaa; font-size: 12px; margin-top: 3px;">+{{ game_state.all_items[game_state.equipped.armor].defense_bonus }} Défense</div>
+                            </div>
+                            <form method="post" action="/action" style="margin-top: 8px;">
+                                <input type="hidden" name="action_type" value="unequip">
+                                <input type="hidden" name="action_value" value="armor">
+                                <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Dés-équiper</button>
+                            </form>
+                        {% else %}
+                            <div style="color: #888; font-style: italic; margin-top: 5px;">Aucune armure équipée</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="flex: 1.5; background: rgba(0, 170, 136, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #00aa88;">
+                    <h3 style="color: #00aa88; margin-top: 0;">📦 INVENTAIRE ({{ game_state.inventory|length }} / 20)</h3>
+                    {% if game_state.inventory|length > 0 %}
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            {% for item_name in game_state.inventory %}
+                                {% if item_name in game_state.all_items %}
+                                    {% set item = game_state.all_items[item_name] %}
+                                    <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; margin-bottom: 8px; border-radius: 5px; border-left: 4px solid #00aa88;">
+                                        <div style="color: #fff; font-weight: bold;">{{ item_name }}</div>
+                                        <div style="color: #aaa; font-size: 12px; margin-top: 3px;">{{ item.description }}</div>
+                                        <div style="margin-top: 8px; display: flex; gap: 5px;">
+                                            {% if item.type == 'weapon' %}
+                                                <form method="post" action="/action" style="display: inline;">
+                                                    <input type="hidden" name="action_type" value="equip">
+                                                    <input type="hidden" name="action_value" value="{{ item_name }}|weapon">
+                                                    <button type="submit" style="background: #ff6400; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">⚡ Équiper</button>
+                                                </form>
+                                            {% elif item.type == 'armor' %}
+                                                <form method="post" action="/action" style="display: inline;">
+                                                    <input type="hidden" name="action_type" value="equip">
+                                                    <input type="hidden" name="action_value" value="{{ item_name }}|armor">
+                                                    <button type="submit" style="background: #6496ff; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">🛡️ Équiper</button>
+                                                </form>
+                                            {% elif item.type == 'consumable' %}
+                                                <form method="post" action="/action" style="display: inline;">
+                                                    <input type="hidden" name="action_type" value="use_item">
+                                                    <input type="hidden" name="action_value" value="{{ item_name }}">
+                                                    <button type="submit" style="background: #44aa44; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">✨ Utiliser</button>
+                                                </form>
+                                            {% endif %}
+                                            <form method="post" action="/action" style="display: inline;">
+                                                <input type="hidden" name="action_type" value="drop_item">
+                                                <input type="hidden" name="action_value" value="{{ item_name }}">
+                                                <button type="submit" style="background: #aa4444; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">🗑️ Jeter</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div style="color: #888; font-style: italic; text-align: center; padding: 20px;">Inventaire vide</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if game_state.show_quests %}
+    <div class="modal-overlay" onclick="closeQuests()">
+        <div class="modal-content" style="width: 90%; max-width: 700px; background: linear-gradient(135deg, #2a1a1a 0%, #3d1f1f 100%); border-color: #ffaa00;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #ffaa00; margin: 0; font-size: 24px;">📜 QUÊTES QUOTIDIENNES</h2>
+                <form method="post" action="/action" style="margin: 0;">
+                    <input type="hidden" name="action_type" value="toggle_quests">
+                    <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 16px;">✕</button>
+                </form>
+            </div>
+            <div style="max-height: 500px; overflow-y: auto;">
+                {% for quest in game_state.quests %}
+                    <div style="background: {% if quest.completed %}rgba(0, 255, 0, 0.1){% else %}rgba(255, 170, 0, 0.1){% endif %}; padding: 15px; margin-bottom: 12px; border-radius: 8px; border-left: 4px solid {% if quest.completed %}#00ff00{% else %}#ffaa00{% endif %};">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <div style="color: {% if quest.completed %}#00ff00{% else %}#ffaa00{% endif %}; font-weight: bold; font-size: 16px;">{{ quest.icon }} {{ quest.name }}</div>
+                                <div style="color: #aaa; margin-top: 5px;">{{ quest.description }}</div>
+                                <div style="margin-top: 10px;">
+                                    <div style="background: rgba(0, 0, 0, 0.3); height: 20px; border-radius: 3px; overflow: hidden; border: 1px solid #666;">
+                                        <div style="background: linear-gradient(90deg, #ffaa00, #ffff00); height: 100%; width: {% if quest.target > 0 %}{{ (quest.progress / quest.target) * 100 }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <div style="color: #aaa; font-size: 12px; margin-top: 3px;">{{ quest.progress }} / {{ quest.target }}</div>
+                                </div>
+                                <div style="margin-top: 8px; color: #00ff88; font-size: 12px;">Récompenses: {{ quest.reward_exp }} XP, {{ quest.reward_gold }} or{% if quest.reward_item %}, {{ quest.reward_item }}{% endif %}</div>
+                            </div>
+                            {% if quest.completed %}
+                                <div style="background: #00ff00; color: #000; padding: 5px 10px; border-radius: 3px; font-weight: bold; margin-left: 10px;">✓ FAIT</div>
+                            {% elif quest.progress >= quest.target %}
+                                <form method="post" action="/action" style="margin-left: 10px;">
+                                    <input type="hidden" name="action_type" value="complete_quest">
+                                    <input type="hidden" name="action_value" value="{{ quest.name }}">
+                                    <button type="submit" style="background: #00ff88; color: #000; border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-weight: bold;">Compléter</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if game_state.show_skills %}
+    <div class="modal-overlay" onclick="closeSkills()">
+        <div class="modal-content" style="width: 90%; max-width: 850px; background: linear-gradient(135deg, #1a0a2e 0%, #2a1555 100%); border-color: #9966ff;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #bb88ff; margin: 0; font-size: 24px;">✨ COMPÉTENCES - {{ game_state.player_class }}</h2>
+                <form method="post" action="/action" style="margin: 0;">
+                    <input type="hidden" name="action_type" value="toggle_skills">
+                    <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-size: 16px;">✕</button>
+                </form>
+            </div>
+            <div style="max-height: 600px; overflow-y: auto;">
+                <div style="margin-bottom: 25px;">
+                    <div style="color: #00ff88; font-weight: bold; font-size: 1.1em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #00ff88;">🔓 COMPÉTENCES DÉBLOQUÉES ({{ game_state.player_skills|length }})</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+                        {% for skill_name, skill_data in game_state.player_skills.items() %}
+                            <div style="background: rgba(153, 100, 255, 0.15); padding: 12px; border-radius: 6px; border-left: 3px solid #9966ff;">
+                                <div style="color: #bb88ff; font-weight: bold; font-size: 1.05em;">{{ skill_data.icon }} {{ skill_name }}</div>
+                                <div style="color: #aaa; font-size: 0.9em; margin-top: 5px;">{{ skill_data.description }}</div>
+                                <div style="color: #88ccff; font-size: 0.85em; margin-top: 6px; font-weight: bold;">💙 {{ skill_data.mana_cost }} mana</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% if game_state.upcoming_skills %}
+                    <div>
+                        <div style="color: #ffaa00; font-weight: bold; font-size: 1.1em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #ffaa00;">🔐 PROCHAINES COMPÉTENCES</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+                            {% for skill in game_state.upcoming_skills %}
+                                <div style="background: rgba(255, 170, 0, 0.15); padding: 12px; border-radius: 6px; border-left: 3px solid #ffaa00;">
+                                    <div style="color: #ffaa00; font-weight: bold; font-size: 1.05em;">{{ skill.icon }} {{ skill.name }}</div>
+                                    <div style="color: #aaa; font-size: 0.9em; margin-top: 5px;">{{ skill.description }}</div>
+                                    <div style="color: #ff9900; font-size: 0.85em; margin-top: 6px; font-weight: bold;">📈 Niveau {{ skill.level }}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if game_state.player_class_chosen and not game_state.game_over %}
+        <div class="world-map-container">
+            <div class="world-map-title">🗺️ CARTE</div>
+            <div class="world-map">
+                {% for loc in game_state.world_map.locations %}
+                    <div class="map-location {% if loc.is_current %}current{% endif %}" style="left: {{ loc.x }}%; top: {{ loc.y }}%; transform: translateX(-50%) translateY(-50%);">
+                        <span style="font-size: 14px;">◉</span>
+                        <div class="map-location-name">{{ loc.name }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</body>
+</html>
