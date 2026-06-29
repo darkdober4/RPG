@@ -823,6 +823,48 @@ ITEMS = {
        "rarity": "rare",
        "price": 70,
        "description": "+15 Defense pendant 2 tours"
+    },
+    # ===== Items Zone 2 (nouveaux objets) =====
+    "Bâton des Abysses": {
+       "type": "weapon",
+       "attack_bonus": 15,
+       "mana_bonus": 50,
+       "class": "Mage",
+       "rarity": "epique",
+       "price": 0,
+       "description": "Bâton imprimé de magie noire des abysses"
+    },
+    "Épée du Dragon": {
+       "type": "weapon",
+       "attack_bonus": 20,
+       "class": "Guerrier",
+       "rarity": "legendaire",
+       "price": 0,
+       "description": "Épée forgée dans les flammes d'un dragon"
+    },
+    "Arc des Ombres": {
+       "type": "weapon",
+       "attack_bonus": 18,
+       "class": "Archer",
+       "rarity": "epique",
+       "price": 0,
+       "description": "Arc maudit qui tire des flèches spectrales"
+    },
+    "Armure du Gardien": {
+       "type": "armor",
+       "defense_bonus": 12,
+       "health_bonus": 30,
+       "rarity": "epique",
+       "price": 0,
+       "description": "Armure portée par les gardiens des donjons"
+    },
+    "Amulette de l'Immortel": {
+       "type": "accessory",
+       "health_bonus": 50,
+       "defense_bonus": 5,
+       "rarity": "legendaire",
+       "price": 0,
+       "description": "Amulette qui confère une partie de l'immortalité"
     }
 }
 
@@ -1055,6 +1097,7 @@ LOCATIONS = {
 
 # Enemis
 ENEMIES = {
+    # ===== Ennemis Zone 1 (de base) =====
     "Goblin": {
         "health": 40,
         "attack": 10,
@@ -1126,6 +1169,47 @@ ENEMIES = {
         "level": 25,
         "exp_reward": 500,
         "gold_reward": 500
+    },
+    # ===== Ennemis Zone 2 (nouveaux monstres) =====
+    "Dragon des Abysses": {
+        "health": 350,
+        "attack": 45,
+        "defense": 15,
+        "level": 25,
+        "exp_reward": 800,
+        "gold_reward": 250
+    },
+    "Démon des Flammes": {
+        "health": 280,
+        "attack": 40,
+        "defense": 12,
+        "level": 22,
+        "exp_reward": 700,
+        "gold_reward": 200
+    },
+    "Golem de Pierre": {
+        "health": 400,
+        "attack": 30,
+        "defense": 25,
+        "level": 20,
+        "exp_reward": 600,
+        "gold_reward": 150
+    },
+    "Spectre Supérieur": {
+        "health": 220,
+        "attack": 35,
+        "defense": 8,
+        "level": 18,
+        "exp_reward": 550,
+        "gold_reward": 120
+    },
+    "Troll des Montagnes": {
+        "health": 300,
+        "attack": 38,
+        "defense": 10,
+        "level": 15,
+        "exp_reward": 450,
+        "gold_reward": 100
     }
 }
 
@@ -1212,5 +1296,159 @@ BOSS_EQUIPMENT_CONFIG = {
         "armor_bonus": 12,
         "health_bonus": 80,
         "items_count": 3
+    }
+}
+
+# ==================== SYSTÈME DE ZONES ====================
+
+# Configuration des zones
+ZONES = {
+    1: {
+        "name": "Zone 1",
+        "description": "Zone de base - Forêts, villages et donjons classiques",
+        "unlocked_by_default": True,
+        "required_level": 1,
+        "enemies": ["Gobelin", "Loup", "Goblin Guerrier", "Chauve-souris", "Nymphe Enragee"],
+        "loot_table": {
+            "commun": 0.55,
+            "rare": 0.30,
+            "epique": 0.10,
+            "legendaire": 0.05
+        }
+    },
+    2: {
+        "name": "Zone 2",
+        "description": "Zone avancée - Monstres puissants et trésors rares",
+        "unlocked_by_default": False,
+        "required_level": 10,
+        "enemies": ["Dragon Jeune", "Golem", "Pretre Noir", "Gardien du Tresor", "Liche"],
+        "loot_table": {
+            "commun": 0.20,
+            "rare": 0.35,
+            "epique": 0.30,
+            "legendaire": 0.15
+        }
+    }
+}
+
+# Ennemis spécifiques à la Zone 2 (en plus des ennemis de base)
+ZONE_2_ENEMIES = {
+    "Dragon des Abysses": {
+        "health": 350,
+        "attack": 45,
+        "defense": 15,
+        "level": 25,
+        "exp_reward": 800,
+        "gold_reward": 250
+    },
+    "Démon des Flammes": {
+        "health": 280,
+        "attack": 40,
+        "defense": 12,
+        "level": 22,
+        "exp_reward": 700,
+        "gold_reward": 200
+    },
+    "Golem de Pierre": {
+        "health": 400,
+        "attack": 30,
+        "defense": 25,
+        "level": 20,
+        "exp_reward": 600,
+        "gold_reward": 150
+    },
+    "Spectre Supérieur": {
+        "health": 220,
+        "attack": 35,
+        "defense": 8,
+        "level": 18,
+        "exp_reward": 550,
+        "gold_reward": 120
+    },
+    "Troll des Montagnes": {
+        "health": 300,
+        "attack": 38,
+        "defense": 10,
+        "level": 15,
+        "exp_reward": 450,
+        "gold_reward": 100
+    }
+}
+
+# Loot spécifique à la Zone 2 (en plus du loot de base)
+ZONE_2_LOOT = {
+    "commun": [
+        "Épée Acérée",
+        "Armure de Fer",
+        "Potion Santé Majeure",
+        "Potion Mana Majeure"
+    ],
+    "rare": [
+        "Épée de Lumière",
+        "Lame Sombre",
+        "Armure Acier",
+        "Armure de Brume",
+        "Potion Force",
+        "Potion Protection"
+    ],
+    "epique": [
+        "Glaive du Guerrier",
+        "Marteau de Guerre",
+        "Armure Dragon",
+        "Armure Mithril",
+        "Anneau du Guerrier",
+        "Couronne de Pouvoir"
+    ],
+    "legendaire": [
+        "Épée de Feu",
+        "Éclair Éternel",
+        "Armure Céleste",
+        "Armure Sacrée",
+        "Anneau Infini"
+    ]
+}
+
+# Items spécifiques à la Zone 2
+ZONE_2_ITEMS = {
+    "Bâton des Abysses": {
+        "type": "weapon",
+        "attack_bonus": 15,
+        "mana_bonus": 50,
+        "class": "Mage",
+        "rarity": "epique",
+        "price": 0,
+        "description": "Bâton imprimé de magie noire des abysses"
+    },
+    "Épée du Dragon": {
+        "type": "weapon",
+        "attack_bonus": 20,
+        "class": "Guerrier",
+        "rarity": "legendaire",
+        "price": 0,
+        "description": "Épée forgée dans les flammes d'un dragon"
+    },
+    "Arc des Ombres": {
+        "type": "weapon",
+        "attack_bonus": 18,
+        "class": "Archer",
+        "rarity": "epique",
+        "price": 0,
+        "description": "Arc maudit qui tire des flèches spectrales"
+    },
+    "Armure du Gardien": {
+        "type": "armor",
+        "defense_bonus": 12,
+        "health_bonus": 30,
+        "rarity": "epique",
+        "price": 0,
+        "description": "Armure portée par les gardiens des donjons"
+    },
+    "Amulette de l'Immortel": {
+        "type": "accessory",
+        "health_bonus": 50,
+        "defense_bonus": 5,
+        "rarity": "legendaire",
+        "price": 0,
+        "description": "Amulette qui confère une partie de l'immortalité"
     }
 }
