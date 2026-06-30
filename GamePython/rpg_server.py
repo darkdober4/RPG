@@ -8,7 +8,7 @@ Lance le jeu d'aventure en ligne
 
 from flask import Flask, render_template, request, session, redirect, url_for
 from game_engine import GameEngine
-from game_config import ITEMS, CLASSES, SKILLS, DAILY_QUESTS
+from game_config import ITEMS, CLASSES, SKILLS, DAILY_QUESTS, LOCATIONS, SHOPS
 import webbrowser
 import threading
 import os
@@ -64,12 +64,15 @@ def get_game_session():
             
             # CORRECTION : Charger l'inventaire et l'équipement avec les bons types
             saved_inventory = saved_stats.get('inventory', {})
-            if isinstance(saved_inventory, dict):
-                game_sessions[game_id].inventory = saved_inventory.copy()
-            elif isinstance(saved_inventory, list):
-                game_sessions[game_id].inventory = {}
-                for item in saved_inventory:
-                    game_sessions[game_id].inventory[item] = game_sessions[game_id].inventory.get(item, 0) + 1
+            match saved_inventory:
+                case dict():
+                    game_sessions[game_id].inventory = saved_inventory.copy()
+                case list():
+                    game_sessions[game_id].inventory = {}
+                    for item in saved_inventory:
+                        game_sessions[game_id].inventory[item] = game_sessions[game_id].inventory.get(item, 0) + 1
+                case _:
+                    game_sessions[game_id].inventory = {}
             
             saved_equipped = saved_stats.get('equipped', {})
             if isinstance(saved_equipped, dict):
@@ -93,6 +96,10 @@ def get_game_session():
             saved_unlocked_skills = saved_stats.get('unlocked_skills', {})
             if isinstance(saved_unlocked_skills, dict):
                 game_sessions[game_id].unlocked_skills = saved_unlocked_skills.copy()
+
+            saved_runes = saved_stats.get('rune_inventory', {})
+            if isinstance(saved_runes, dict):
+                game_sessions[game_id].rune_inventory = saved_runes.copy()
     
     return game_sessions[game_id]
 
@@ -147,7 +154,14 @@ def index():
         'completed_quests_count': len(game.completed_quests),
         'player_skills': game.get_available_skills_for_level(),
         'upcoming_skills': game.get_upcoming_skills(),
-        'unlocked_skills': game.unlocked_skills
+        'unlocked_skills': game.unlocked_skills,
+        'combat_animation': session.get('combat_animation'),
+        'current_location_npcs': LOCATIONS.get(game.current_location, {}).get('npcs', []),
+        'current_location_shops': LOCATIONS.get(game.current_location, {}).get('shops', []),
+        'all_shops': SHOPS,
+        'runes_data': game.get_runes_display(),
+        'show_runes': game.show_runes,
+        'rune_buffs': game.get_rune_buff_summary()
     }
     
     if 'last_message' in session:
@@ -161,95 +175,160 @@ def action():
     """Gere les actions du joueur"""
     game = get_game_session()
     
-    action_type = request.form.get('action_type')
-    action_value = request.form.get('action_value')
-    
+    action_type = request.form.get('action_type') or ""
+    action_value = request.form.get('action_value') or ""
     message = ""
     
-    if action_type == 'move':
-        message = game.move(action_value)
-        game.close_shop()
-    elif action_type == 'fight':
-        message = game.start_fight(action_value)
-        game.close_shop()
-    elif action_type == 'explore':
-        message = game.explore_location()
-        game.close_shop()
-    elif action_type == 'change_zone':
-        message = game.change_zone(action_value)
-        game.close_shop()
-    elif action_type == 'explore_zone':
-        # explore_zone gère à la fois les valeurs numériques (zone_id) et "explore"
-        message = game.explore_zone(action_value)
-        game.close_shop()
-    elif action_type == 'talk':
-        message = game.talk_to_npc(action_value)
-    elif action_type == 'attack':
-        message = game.attack_enemy()
-    elif action_type == 'use_skill':
-        message = game.use_skill(action_value)
-    elif action_type == 'flee':
-        message = game.flee_combat()
-    elif action_type == 'buy':
-        message = game.buy_item(action_value)
-    elif action_type == 'equip':
-        parts = action_value.split('|')
-        item_name = parts[0]
-        item_type = parts[1] if len(parts) > 1 else 'weapon'
-        if game.equip_item(item_name, item_type):
-            message = f"{item_name} équipé(e)!"
-        else:
-            message = "Impossible d'équiper cet objet."
-    elif action_type == 'unequip':
-        if game.unequip_item(action_value):
-            message = f"Objet dés-équipé!"
-        else:
-            message = "Aucun objet à dés-équiper."
-    elif action_type == 'use_item':
-        message = game.use_item(action_value)
-    elif action_type == 'drop_item':
-        if game.drop_item(action_value):
-            message = f"{action_value} jeté(e)!"
-        else:
-            message = "Objet non trouvé."
-    elif action_type == 'close_shop':
-        message = game.close_shop()
-    elif action_type == 'set_difficulty':
-        message = game.set_difficulty(action_value)
-    elif action_type == 'toggle_options':
-        game.toggle_options()
-        if game.show_options:
-            message = "Options ouvertes."
-        else:
-            message = "Options fermees."
-    elif action_type == 'toggle_inventory':
-        game.toggle_inventory()
-        if game.show_inventory:
-            message = "Inventaire ouvert."
-        else:
-            message = "Inventaire fermé."
-    elif action_type == 'toggle_quests':
-        game.toggle_quests()
-        if game.show_quests:
-            message = "Quêtes ouvertes."
-        else:
-            message = "Quêtes fermées."
-    elif action_type == 'toggle_skills':
-        game.toggle_skills()
-        if game.show_skills:
-            message = "Compétences ouvertes."
-        else:
-            message = "Compétences fermées."
-    elif action_type == 'complete_quest':
-        if game.complete_quest(action_value):
-            quest_data = DAILY_QUESTS.get(action_value, {})
-            message = f"Quête complétée! +{quest_data.get('reward_exp', 0)} XP, +{quest_data.get('reward_gold', 0)} or"
-            if quest_data.get('reward_item'):
-                message += f", +{quest_data.get('reward_item')}"
-        else:
-            message = "Cette quête est déjà complétée ou non accomplie."
+    # Utilisation de match/case pour une meilleure lisibilité (Python 3.10+)
+    match action_type:
+        # Actions de déplacement et exploration
+        case 'move':
+            message = game.move(action_value)
+            game.close_shop()
+        case 'fight':
+            message = game.start_fight(action_value)
+            game.close_shop()
+        case 'explore':
+            message = game.explore_location()
+            game.close_shop()
+        case 'change_zone':
+            message = game.change_zone(action_value)
+            game.close_shop()
+        case 'explore_zone':
+            message = game.explore_zone(action_value)
+            game.close_shop()
+        case 'rest':
+            message = game.rest()
+            game.close_shop()
+        
+        # Actions sociales
+        case 'talk':
+            message = game.talk_to_npc(action_value)
+        case 'visit_shop':
+            message = game.visit_shop(action_value)
+        
+        # Actions de combat
+        case 'attack':
+            result = game.attack_enemy()
+            if isinstance(result, dict):
+                message = result.get("message", "")
+                if result.get("action") in ["attack", "kill"]:
+                    session['combat_animation'] = {
+                        "type": "attack",
+                        "player_damage": result.get("player_damage", 0),
+                        "enemy_damage": result.get("enemy_damage", 0),
+                        "is_critical": result.get("is_critical", False)
+                    }
+            else:
+                message = result
+        
+        case 'use_skill':
+            result = game.use_skill(action_value)
+            if isinstance(result, dict):
+                message = result.get("message", "")
+                # Utilisation de match/case pour les actions de compétence
+                match result.get("action"):
+                    case "skill_attack" | "heal" | "defense_boost" | "attack_boost" | "damage_reduction":
+                        session['combat_animation'] = {
+                            "type": result.get("skill_type", "skill"),
+                            "action": result.get("action", "skill"),
+                            "total_damage": result.get("total_damage", 0),
+                            "heal_amount": result.get("heal_amount", 0),
+                            "boost_amount": result.get("boost_amount", 0),
+                            "is_critical": result.get("is_critical", False),
+                            "hits": result.get("hits", 1),
+                            "skill_name": action_value
+                        }
+                    case "kill":
+                        session['combat_animation'] = {
+                            "type": result.get("skill_type", "magic"),
+                            "action": "kill",
+                            "total_damage": result.get("total_damage", 0),
+                            "enemy_defeated": True
+                        }
+                    case _:
+                        pass  # Aucune animation spéciale
+            else:
+                message = result if isinstance(result, str) else str(result)
+        
+        case 'flee':
+            message = game.flee_combat()
+        
+        # Actions d'inventaire
+        case 'equip':
+            parts = action_value.split('|')
+            item_name = parts[0]
+            item_type = parts[1] if len(parts) > 1 else 'weapon'
+            if game.equip_item(item_name, item_type):
+                message = f"{item_name} équipé(e)!"
+            else:
+                message = "Impossible d'équiper cet objet."
+        
+        case 'unequip':
+            if game.unequip_item(action_value):
+                message = "Objet dés-équipé!"
+            else:
+                message = "Aucun objet à dés-équiper."
+        
+        case 'use_item':
+            message = game.use_item(action_value)
+        
+        case 'drop_item':
+            if game.drop_item(action_value):
+                message = f"{action_value} jeté(e)!"
+            else:
+                message = "Objet non trouvé."
+        
+        case 'buy':
+            message = game.buy_item(action_value)
+        
+        case 'close_shop':
+            message = game.close_shop()
+        
+        # Actions d'interface
+        case 'set_difficulty':
+            message = game.set_difficulty(action_value)
+        
+        case 'toggle_options':
+            game.toggle_options()
+            message = "Options ouvertes." if game.show_options else "Options fermees."
+        
+        case 'toggle_inventory':
+            game.toggle_inventory()
+            message = "Inventaire ouvert." if game.show_inventory else "Inventaire fermé."
+        
+        case 'toggle_quests':
+            game.toggle_quests()
+            message = "Quêtes ouvertes." if game.show_quests else "Quêtes fermées."
+        
+        case 'toggle_skills':
+            game.toggle_skills()
+            message = "Compétences ouvertes." if game.show_skills else "Compétences fermées."
+
+        case 'toggle_runes':
+            game.toggle_runes()
+            message = "Runes ouvertes." if game.show_runes else "Runes fermées."
+
+        case 'craft_rune':
+            message = game.craft_rune(action_value)
+        
+        case 'complete_quest':
+            if game.complete_quest(action_value):
+                quest_data = DAILY_QUESTS.get(action_value, {})
+                message = f"Quête complétée! +{quest_data.get('reward_exp', 0)} XP, +{quest_data.get('reward_gold', 0)} or"
+                if quest_data.get('reward_item'):
+                    message += f", +{quest_data.get('reward_item')}"
+            else:
+                message = "Cette quête est déjà complétée ou non accomplie."
+        
+        # Cas par défaut
+        case _:
+            message = "Action inconnue."
     
     game.check_win()
+    
+    # Stocker le message dans la session pour affichage
+    session['last_message'] = message
     
     # Sauvegarder automatiquement les stats si le joueur est mort
     if game.game_over:
@@ -269,7 +348,8 @@ def action():
             'quest_progress': game.quest_progress.copy(),
             'completed_quests': game.completed_quests.copy(),
             'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
-            'unlocked_skills': game.unlocked_skills.copy()
+            'unlocked_skills': game.unlocked_skills.copy(),
+            'rune_inventory': game.rune_inventory.copy()
         }
         session.modified = True
         # Supprimer la session de jeu actuelle pour forcer un rechargement
@@ -310,16 +390,17 @@ def restart():
         'quest_progress': game.quest_progress.copy(),
         'completed_quests': game.completed_quests.copy(),
         'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
-        'unlocked_skills': game.unlocked_skills.copy()
+        'unlocked_skills': game.unlocked_skills.copy(),
+        'rune_inventory': game.rune_inventory.copy()
     }
-    
+
     game_id = session.get('game_id')
     if game_id and game_id in game_sessions:
         del game_sessions[game_id]
-    
+
     if 'last_message' in session:
         del session['last_message']
-    
+
     session['game_id'] = os.urandom(16).hex()
     session.modified = True
     
@@ -330,6 +411,15 @@ def restart():
 def health():
     """Route de sante du serveur"""
     return {'status': 'ok', 'message': 'Serveur RPG actif'}, 200
+
+
+@app.route('/clear_animation', methods=['POST'])
+def clear_animation():
+    """Nettoie l'animation de combat après affichage"""
+    if 'combat_animation' in session:
+        del session['combat_animation']
+        session.modified = True
+    return '', 200
 
 
 def open_browser():

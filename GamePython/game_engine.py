@@ -3,7 +3,8 @@ from game_config import (
     GAME_CONFIG, LOCATIONS, ENEMIES, NPCS_DIALOGUE, ITEMS, SHOPS,
     DIFFICULTY_SETTINGS, LOOT_BY_RARITY, CLASSES, DAILY_QUESTS,
     SKILLS, BOSSES, BOSS_EQUIPMENT_CONFIG, PROGRESSIVE_SKILLS,
-    ZONES, ZONE_2_ENEMIES, ZONE_2_LOOT, ZONE_2_ITEMS
+    ZONES, ZONE_2_ENEMIES, ZONE_2_LOOT, ZONE_2_ITEMS,
+    RUNES, RUNE_RECIPES, RUNE_RARITIES, RUNE_DROP_CHANCE
 )
 import random
 from datetime import datetime
@@ -67,6 +68,11 @@ class GameEngine:
         self.enemy_level = 1
         self.enemy_attack = 0
         self.enemy_defense = 0
+
+        # Système de runes
+        self.rune_inventory = {}  # {"Rune de Feu|mineure": 2, ...}
+        self.active_rune_buffs = []  # [{"name": ..., "effect": ..., "value": ..., "turns_left": ...}, ...]
+        self.show_runes = False
 
     def set_class(self, class_name):
         if class_name not in CLASSES:
@@ -272,21 +278,96 @@ class GameEngine:
     
     def attack_enemy(self):
         if not self.in_combat or not self.current_enemy:
-            return "Vous n'êtes pas en combat !"
-        
+            return {"message": "Vous n'êtes pas en combat !", "action": "none"}
+
+        rune_log = ""
+
+        # Rune: regen au début du tour
+        regen_val = self.get_rune_buff_value("regen")
+        if regen_val > 0:
+            healed = self.heal(regen_val)
+            if healed > 0:
+                rune_log += f"\n🌿 Régénération : +{healed} HP"
+
+        # Rune: enemy_weaken (réduit ATK ennemi)
+        weaken_val = self.get_rune_buff_value("enemy_weaken")
+        enemy_atk = self.current_enemy.get("attack", 5)
+        if weaken_val > 0:
+            enemy_atk = max(1, enemy_atk - weaken_val)
+
         player_damage = self.player_stats["attack"] + random.randint(-2, 5)
+
+        # Rune: attack_boost
+        atk_boost = self.get_rune_buff_value("attack_boost")
+        player_damage += atk_boost
+
+        # Rune: berserk (+ATK -DEF)
+        if self.has_rune_buff("berserk"):
+            berserk_val = self.get_rune_buff_value("berserk")
+            player_damage += berserk_val
+
+        # Rune: all_boost
+        all_boost_val = self.get_rune_buff_value("all_boost")
+        player_damage += all_boost_val
+
+        # Rune: bonus_damage_next (dégâts bonus à usage unique)
+        bonus_dmg = self.get_rune_buff_value("bonus_damage_next")
+        if bonus_dmg > 0:
+            player_damage += bonus_dmg
+            self.consume_rune_buff("bonus_damage_next")
+            rune_log += "\n💥 Bonus de rune explosé !"
+
         enemy_defense = self.current_enemy.get("defense", 0)
         player_damage = max(1, player_damage - enemy_defense // 2)
-        
-        enemy_damage = self.current_enemy.get("attack", 5) + random.randint(-2, 3)
+
+        # Appliquer le multiplicateur de dégâts de l'arme équipée
+        weapon_name = self.equipped.get("weapon")
+        if weapon_name and weapon_name in ITEMS:
+            weapon_data = ITEMS[weapon_name]
+            damage_mult = weapon_data.get("damage_multiplier", 1.0)
+            if damage_mult > 1.0:
+                player_damage = int(player_damage * damage_mult)
+
+        enemy_damage = enemy_atk + random.randint(-2, 3)
+
+        # Rune: defense_boost + all_boost + berserk penalty
         player_defense = self.player_stats["defense"]
-        enemy_damage = max(1, enemy_damage - player_defense // 2)
-        
+        def_boost = self.get_rune_buff_value("defense_boost") + all_boost_val
+        if self.has_rune_buff("berserk"):
+            berserk_penalty = RUNE_RECIPES.get("Fureur Primale", {}).get("penalty", 10)
+            def_boost -= berserk_penalty
+        enemy_damage = max(1, enemy_damage - (player_defense + def_boost) // 2)
+
+        # Déterminer si c'est un coup critique
+        is_critical = random.random() < 0.1
+        # Rune: guaranteed_crit
+        if self.has_rune_buff("guaranteed_crit"):
+            is_critical = True
+            crit_mult = self.get_rune_buff_value("guaranteed_crit")
+            player_damage = int(player_damage * crit_mult)
+            self.consume_rune_buff("guaranteed_crit")
+            rune_log += "\n💀 Frappe de l'Ombre : critique garanti !"
+        elif is_critical:
+            player_damage = int(player_damage * 1.5)
+
+        # Rune: multi_hit (chance de frapper plusieurs fois)
+        extra_hits = 0
+        if self.has_rune_buff("multi_hit") and random.random() < 0.4:
+            extra_hits = self.get_rune_buff_value("multi_hit") - 1
+            player_damage *= (extra_hits + 1)
+            rune_log += f"\n🌀 Vortex : {extra_hits + 1} frappes !"
+
         self.current_enemy["health"] -= player_damage
         self.total_damage_dealt += player_damage
         self.enemy_health = self.current_enemy.get("health", 0)
-        
-        combat_log = f"Vous avez infligé {player_damage} dégâts !\n"
+
+        combat_log = f"Vous avez infligé {player_damage} dégâts !"
+        if is_critical:
+            combat_log = f"COUP CRITIQUE ! {player_damage} dégâts !"
+        combat_log += rune_log
+
+        # Tick des buffs de runes
+        self.tick_rune_buffs()
         
         if self.current_enemy["health"] <= 0:
             loot = self.get_loot(self.current_enemy.get("level", 1))
@@ -295,10 +376,9 @@ class GameEngine:
             enemy_name = self.current_enemy["name"]
             
             self.player_stats["gold"] += gold_gain
-            # Mettre à jour la progression des quêtes SEPAREMENT pour éviter la double comptabilisation
-            self.update_quest_progress(enemy_name=enemy_name)  # Quêtes de type "tuer X ennemis"
-            self.update_quest_progress(gold_gain=gold_gain)     # Quêtes de type "gold"
-            self.add_exp(exp_gain)  # add_exp appellera update_quest_progress(exp_gain) pour les quêtes d'XP
+            self.update_quest_progress(enemy_name=enemy_name)
+            self.update_quest_progress(gold_gain=gold_gain)
+            self.add_exp(exp_gain)
             self.total_enemies_defeated += 1
             
             if self.current_enemy.get("is_boss"):
@@ -311,28 +391,60 @@ class GameEngine:
                 for item, qty in loot.items():
                     self.inventory[item] = self.inventory.get(item, 0) + qty
                     combat_log += f"Butin : {item} (x{qty})\n"
-            
+
+            rune_drop = self.drop_rune(self.current_enemy.get("level", 1))
+            if rune_drop:
+                combat_log += f"Rune : {rune_drop}\n"
+
             self.in_combat = False
             self.current_enemy = None
             self.enemy_health = 0
             self.enemy_max_health = 0
-            return combat_log
+            return {
+                "message": combat_log,
+                "action": "kill",
+                "enemy_defeated": True,
+                "player_damage": player_damage,
+                "enemy_damage": 0,
+                "is_critical": is_critical
+            }
         
         self.take_damage(enemy_damage)
-        combat_log += f"L'ennemi a infligé {enemy_damage} dégâts !\n"
-        combat_log += f"Vie ennemie : {self.current_enemy['health']}\n"
-        combat_log += f"Votre vie : {self.player_stats['health']}\n"
+        combat_log += f"\nL'ennemi a infligé {enemy_damage} dégâts !"
+        
+        # Save enemy health before potential cleanup
+        current_enemy_health = self.current_enemy['health']
+        
+        combat_log += f"\nVie ennemie : {current_enemy_health}"
+        combat_log += f"\nVotre vie : {self.player_stats['health']}"
         
         if self.player_stats['health'] <= 0:
-            combat_log += "Vous avez été vaincu !"
+            combat_log += "\nVous avez été vaincu !"
             self.in_combat = False
             self.current_enemy = None
             self.enemy_health = 0
             self.enemy_max_health = 0
             self.reset_health()
+            return {
+                "message": combat_log,
+                "action": "attack",
+                "player_damage": player_damage,
+                "enemy_damage": enemy_damage,
+                "is_critical": is_critical,
+                "player_health": self.player_stats['health'],
+                "enemy_health": current_enemy_health
+            }
         
         self.combat_turn += 1
-        return combat_log
+        return {
+            "message": combat_log,
+            "action": "attack",
+            "player_damage": player_damage,
+            "enemy_damage": enemy_damage,
+            "is_critical": is_critical,
+            "player_health": self.player_stats['health'],
+            "enemy_health": current_enemy_health
+        }
     
     def take_damage(self, amount):
         armor_bonus = self.temporary_buffs.get("defense", 0)
@@ -372,23 +484,25 @@ class GameEngine:
                 self.player_stats["mana"] += mana_bonus
                 self.player_stats["max_mana"] += mana_bonus
                 
-                if self.player_class == "Guerrier":
-                    self.player_stats["defense"] += 2
-                    self.player_stats["attack"] += 1
-                    self.player_stats["health"] += 5
-                    self.player_stats["max_health"] += 5
-                elif self.player_class == "Mage":
-                    self.player_stats["mana"] += 2
-                    self.player_stats["max_mana"] += 2
-                    self.player_stats["attack"] += 0.5
-                    self.player_stats["health"] += 3
-                    self.player_stats["max_health"] += 3
-                elif self.player_class == "Archer":
-                    self.player_stats["attack"] += 1.5
-                    self.player_stats["mana"] += 1
-                    self.player_stats["max_mana"] += 1
-                    self.player_stats["health"] += 4
-                    self.player_stats["max_health"] += 4
+                # Utilisation de match/case pour les bonus de classe
+                match self.player_class:
+                    case "Guerrier":
+                        self.player_stats["defense"] += 2
+                        self.player_stats["attack"] += 1
+                        self.player_stats["health"] += 5
+                        self.player_stats["max_health"] += 5
+                    case "Mage":
+                        self.player_stats["mana"] += 2
+                        self.player_stats["max_mana"] += 2
+                        self.player_stats["attack"] += 0.5
+                        self.player_stats["health"] += 3
+                        self.player_stats["max_health"] += 3
+                    case "Archer":
+                        self.player_stats["attack"] += 1.5
+                        self.player_stats["mana"] += 1
+                        self.player_stats["max_mana"] += 1
+                        self.player_stats["health"] += 4
+                        self.player_stats["max_health"] += 4
             
             self.unlock_progressive_skills()
     
@@ -396,49 +510,36 @@ class GameEngine:
         loot = {}
         if not LOOT_BY_RARITY:
             return loot
-        
-        # Utiliser le loot table de la zone actuelle
+
+        # Récupérer la loot table de la zone (probabilités de base par rareté)
         zone_info = self.get_zone_info()
-        zone_loot_table = zone_info.get('loot_table', LOOT_BY_RARITY) if zone_info else LOOT_BY_RARITY
-        
-        # Pour la Zone 2, améliorer les probabilités
-        if self.current_zone == 2:
-            possible_rarities = ["rare", "epique", "legendaire"]
-            weights = [0.35, 0.35, 0.30]  # Meilleure chance pour les rares
+        if zone_info and 'loot_table' in zone_info:
+            base_table = zone_info['loot_table']
         else:
-            # Zone 1 : loot standard
-            possible_rarities = ["commun"]
-            if enemy_level >= 5:
-                possible_rarities.append("rare")
-            if enemy_level >= 10:
-                possible_rarities.append("epique")
-            if enemy_level >= 20:
-                possible_rarities.append("legendaire")
-            weights = None
-        
-        # Sélectionner les raretés
-        if weights:
-            rarity = random.choices(possible_rarities, weights=weights, k=1)[0]
-            # Ajouter 1-3 items de cette rareté
-            for _ in range(random.randint(1, 3)):
-                if rarity in LOOT_BY_RARITY:
-                    item = random.choice(LOOT_BY_RARITY[rarity])
-                    loot[item] = loot.get(item, 0) + 1
-                # Pour la Zone 2, ajouter une chance de loot spécial
-                if self.current_zone == 2 and rarity in ZONE_2_LOOT:
+            base_table = {
+                "commun": 0.50,
+                "rare": 0.30,
+                "epique": 0.15,
+                "legendaire": 0.05
+            }
+
+        # Scaling : 0.1% base + 1% de la proba de base par niveau du monstre
+        # Ex: ennemi niv 5, commun (base 0.50) → 0.001 + 0.01 * 0.50 * 5 = 0.026 (2.6%)
+        # Ex: ennemi niv 30, legendaire (base 0.05) → 0.001 + 0.01 * 0.05 * 30 = 0.016 (1.6%)
+        for rarity, base_prob in base_table.items():
+            if rarity not in LOOT_BY_RARITY:
+                continue
+            drop_chance = 0.001 + (0.01 * base_prob * enemy_level)
+            if random.random() < drop_chance:
+                item = random.choice(LOOT_BY_RARITY[rarity])
+                loot[item] = loot.get(item, 0) + 1
+
+            # Zone 2 : même formule, pool d'items supplémentaire
+            if self.current_zone == 2 and rarity in ZONE_2_LOOT:
+                if random.random() < drop_chance:
                     zone2_item = random.choice(ZONE_2_LOOT[rarity])
                     loot[zone2_item] = loot.get(zone2_item, 0) + 1
-        else:
-            for _ in range(random.randint(1, 3)):
-                rarity = random.choice(possible_rarities)
-                if rarity in LOOT_BY_RARITY:
-                    item = random.choice(LOOT_BY_RARITY[rarity])
-                    loot[item] = loot.get(item, 0) + 1
-                # Pour la Zone 2, ajouter une chance de loot spécial
-                if self.current_zone == 2 and rarity in ZONE_2_LOOT:
-                    zone2_item = random.choice(ZONE_2_LOOT[rarity])
-                    loot[zone2_item] = loot.get(zone2_item, 0) + 1
-        
+
         return loot
     
     def equip_item(self, item_name, item_type):
@@ -448,10 +549,14 @@ class GameEngine:
             return f"Objet {item_name} introuvable !"
         if item_name not in self.inventory or self.inventory[item_name] <= 0:
             return f"Vous n'avez pas {item_name} dans votre inventaire !"
-        
+
         item_data = ITEMS[item_name]
         if item_data.get("type") != item_type:
             return f"{item_name} n'est pas un {item_type} !"
+
+        required_level = item_data.get("required_level", 1)
+        if self.player_stats["level"] < required_level:
+            return f"Niveau insuffisant pour équiper {item_name} ! (Requis: niv {required_level}, Vous: niv {self.player_stats['level']})"
         
         if self.equipped[item_type]:
             old_item = self.equipped[item_type]
@@ -460,32 +565,34 @@ class GameEngine:
                 old_data = ITEMS[old_item]
                 for stat_key in ["attack_bonus", "defense_bonus", "health_bonus", "mana_bonus"]:
                     if stat_key in old_data:
-                        if stat_key == "attack_bonus":
-                            self.player_stats["attack"] = max(0, self.player_stats.get("attack", 0) - old_data[stat_key])
-                        elif stat_key == "defense_bonus":
-                            self.player_stats["defense"] = max(0, self.player_stats.get("defense", 0) - old_data[stat_key])
-                        elif stat_key == "health_bonus":
-                            self.player_stats["max_health"] = max(1, self.player_stats.get("max_health", 100) - old_data[stat_key])
-                            self.player_stats["health"] = min(self.player_stats["health"], self.player_stats["max_health"])
-                        elif stat_key == "mana_bonus":
-                            self.player_stats["max_mana"] = max(0, self.player_stats.get("max_mana", 50) - old_data[stat_key])
-                            self.player_stats["mana"] = min(self.player_stats["mana"], self.player_stats["max_mana"])
+                        match stat_key:
+                            case "attack_bonus":
+                                self.player_stats["attack"] = max(0, self.player_stats.get("attack", 0) - old_data[stat_key])
+                            case "defense_bonus":
+                                self.player_stats["defense"] = max(0, self.player_stats.get("defense", 0) - old_data[stat_key])
+                            case "health_bonus":
+                                self.player_stats["max_health"] = max(1, self.player_stats.get("max_health", 100) - old_data[stat_key])
+                                self.player_stats["health"] = min(self.player_stats["health"], self.player_stats["max_health"])
+                            case "mana_bonus":
+                                self.player_stats["max_mana"] = max(0, self.player_stats.get("max_mana", 50) - old_data[stat_key])
+                                self.player_stats["mana"] = min(self.player_stats["mana"], self.player_stats["max_mana"])
         
         self.equipped[item_type] = item_name
         self.inventory[item_name] -= 1
         
         for stat_key in ["attack_bonus", "defense_bonus", "health_bonus", "mana_bonus"]:
             if stat_key in item_data:
-                if stat_key == "attack_bonus":
-                    self.player_stats["attack"] = self.player_stats.get("attack", 0) + item_data[stat_key]
-                elif stat_key == "defense_bonus":
-                    self.player_stats["defense"] = self.player_stats.get("defense", 0) + item_data[stat_key]
-                elif stat_key == "health_bonus":
-                    self.player_stats["max_health"] = self.player_stats.get("max_health", 100) + item_data[stat_key]
-                    self.player_stats["health"] = self.player_stats["max_health"]
-                elif stat_key == "mana_bonus":
-                    self.player_stats["max_mana"] = self.player_stats.get("max_mana", 50) + item_data[stat_key]
-                    self.player_stats["mana"] = self.player_stats["max_mana"]
+                match stat_key:
+                    case "attack_bonus":
+                        self.player_stats["attack"] = self.player_stats.get("attack", 0) + item_data[stat_key]
+                    case "defense_bonus":
+                        self.player_stats["defense"] = self.player_stats.get("defense", 0) + item_data[stat_key]
+                    case "health_bonus":
+                        self.player_stats["max_health"] = self.player_stats.get("max_health", 100) + item_data[stat_key]
+                        self.player_stats["health"] = self.player_stats["max_health"]
+                    case "mana_bonus":
+                        self.player_stats["max_mana"] = self.player_stats.get("max_mana", 50) + item_data[stat_key]
+                        self.player_stats["mana"] = self.player_stats["max_mana"]
         
         return f"Vous avez équipé {item_name} !"
     
@@ -500,16 +607,17 @@ class GameEngine:
         
         for stat_key in ["attack_bonus", "defense_bonus", "health_bonus", "mana_bonus"]:
             if stat_key in item_data:
-                if stat_key == "attack_bonus":
-                    self.player_stats["attack"] = max(0, self.player_stats.get("attack", 0) - item_data[stat_key])
-                elif stat_key == "defense_bonus":
-                    self.player_stats["defense"] = max(0, self.player_stats.get("defense", 0) - item_data[stat_key])
-                elif stat_key == "health_bonus":
-                    self.player_stats["max_health"] = max(1, self.player_stats.get("max_health", 100) - item_data[stat_key])
-                    self.player_stats["health"] = min(self.player_stats["health"], self.player_stats["max_health"])
-                elif stat_key == "mana_bonus":
-                    self.player_stats["max_mana"] = max(0, self.player_stats.get("max_mana", 50) - item_data[stat_key])
-                    self.player_stats["mana"] = min(self.player_stats["mana"], self.player_stats["max_mana"])
+                match stat_key:
+                    case "attack_bonus":
+                        self.player_stats["attack"] = max(0, self.player_stats.get("attack", 0) - item_data[stat_key])
+                    case "defense_bonus":
+                        self.player_stats["defense"] = max(0, self.player_stats.get("defense", 0) - item_data[stat_key])
+                    case "health_bonus":
+                        self.player_stats["max_health"] = max(1, self.player_stats.get("max_health", 100) - item_data[stat_key])
+                        self.player_stats["health"] = min(self.player_stats["health"], self.player_stats["max_health"])
+                    case "mana_bonus":
+                        self.player_stats["max_mana"] = max(0, self.player_stats.get("max_mana", 50) - item_data[stat_key])
+                        self.player_stats["mana"] = min(self.player_stats["mana"], self.player_stats["max_mana"])
         
         self.equipped[item_type] = None
         self.inventory[item_name] = self.inventory.get(item_name, 0) + 1
@@ -563,14 +671,7 @@ class GameEngine:
             return f"Magasin {shop_name} introuvable !"
         self.current_shop = shop_name
         shop_data = SHOPS[shop_name]
-        shop_info = f"<h2>{shop_data.get('name', shop_name)}</h2>\n"
-        shop_info += f"<p>{shop_data.get('description', '')}</p>\n"
-        shop_info += "<h3>Inventaire :</h3>\n"
-        for item_name in shop_data.get("items", []):
-            item_data = ITEMS.get(item_name, {})
-            price = item_data.get("price", 0)
-            shop_info += f"- {item_name}: {price} or\n"
-        return shop_info
+        return f"Bienvenue chez {shop_name} ! {shop_data.get('description', '')}"
     
     def buy_item(self, item_name):
         if not self.current_shop or self.current_shop not in SHOPS:
@@ -614,7 +715,8 @@ class GameEngine:
             item_data = ITEMS.get(item_name, {})
             shop_items.append({
                 "name": item_name,
-                "price": item_data.get("price", 0)
+                "price": item_data.get("price", 0),
+                "required_level": item_data.get("required_level", 1)
             })
         return shop_items
     
@@ -796,13 +898,22 @@ class GameEngine:
     def talk_to_npc(self, npc_name):
         if npc_name not in NPCS_DIALOGUE:
             return f"NPC {npc_name} non trouvé."
-        npc_dialogue = NPCS_DIALOGUE[npc_name]
-        dialogue_text = npc_dialogue.get("dialogue", "...")
+        dialogue_text = NPCS_DIALOGUE[npc_name]
         return f"<p><strong>{npc_name}:</strong> {dialogue_text}</p>"
+
+    def rest(self):
+        if self.in_combat:
+            return "Vous ne pouvez pas vous reposer pendant un combat !"
+        heal_amount = int(self.player_stats["max_health"] * 0.3)
+        mana_amount = int(self.player_stats["max_mana"] * 0.2)
+        healed = self.heal(heal_amount)
+        mana_restored = min(mana_amount, self.player_stats["max_mana"] - self.player_stats["mana"])
+        self.player_stats["mana"] += mana_restored
+        return f"Vous vous reposez... Santé restaurée : {healed} HP, Mana restauré : {mana_restored} MP."
     
     def use_skill(self, skill_name):
         if not self.player_class:
-            return "Vous n'avez pas de classe!"
+            return {"message": "Vous n'avez pas de classe!", "action": "none"}
         
         # Vérifier d'abord dans les compétences de base (SKILLS)
         class_skills = SKILLS.get(self.player_class, {})
@@ -818,27 +929,52 @@ class GameEngine:
                     skill_data = skill
                     break
             if skill_data is None:
-                return f"Compétence {skill_name} non trouvée!"
+                return {"message": f"Compétence {skill_name} non trouvée!", "action": "none"}
         else:
-            return f"Compétence {skill_name} non trouvée ou non débloquée!"
+            return {"message": f"Compétence {skill_name} non trouvée ou non débloquée!", "action": "none"}
         
         # Extraire les données de la compétence
         mana_cost = skill_data.get("mana_cost", 0)
         if self.player_stats["mana"] < mana_cost:
-            return f"Pas assez de mana! (Besoin: {mana_cost}, Mana: {self.player_stats['mana']})"
+            return {
+                "message": f"Pas assez de mana! (Besoin: {mana_cost}, Mana: {self.player_stats['mana']})",
+                "action": "none",
+                "skill_type": "fail"
+            }
         self.player_stats["mana"] -= mana_cost
+        
+        # Déterminer le type d'animation selon la compétence avec match/case
+        match skill_name:
+            case "Éclair" | "Boule de Feu" | "Météorite" | "Tir de Précision" | "Charge Furieuse" | "Coup Mortel" | "Coup Puissant":
+                skill_type = "magic"
+            case "Soin" | "Défense Renforcée" | "Esquive" | "Glaciation" | "Téléportation":
+                skill_type = "heal"
+            case "Tir Rapide" | "Pluie de Flèches" | "Volée Explosive":
+                skill_type = "rapid"
+            case _:
+                skill_type = "skill"
         
         # Gestion soin
         if skill_data.get("heal"):
             healed = self.heal(skill_data["heal"])
-            return f"Vous avez utilisé {skill_name}! Santé restaurée: {healed} HP"
+            return {
+                "message": f"Vous avez utilisé {skill_name}! Santé restaurée: {healed} HP",
+                "action": "heal",
+                "skill_type": skill_type,
+                "heal_amount": healed
+            }
         
         # Gestion défense boost
         if skill_data.get("defense_boost"):
             boost = skill_data["defense_boost"]
             duration = skill_data.get("duration", 3)
             self.temporary_buffs["defense"] = boost
-            return f"Vous avez utilisé {skill_name}! Défense augmentée de +{boost} pendant {duration} tours!"
+            return {
+                "message": f"Vous avez utilisé {skill_name}! Défense augmentée de +{boost} pendant {duration} tours!",
+                "action": "defense_boost",
+                "skill_type": skill_type,
+                "boost_amount": boost
+            }
         
         # Gestion attaque boost
         if skill_data.get("attack_multiplier"):
@@ -846,14 +982,23 @@ class GameEngine:
             duration = skill_data.get("duration", 2)
             bonus = int(self.player_stats["attack"] * (boost_mult - 1))
             self.temporary_buffs["attack"] = bonus
-            return f"Vous avez utilisé {skill_name}! Attaque augmentée de +{bonus} pendant {duration} tours!"
+            return {
+                "message": f"Vous avez utilisé {skill_name}! Attaque augmentée de +{bonus} pendant {duration} tours!",
+                "action": "attack_boost",
+                "skill_type": skill_type,
+                "boost_amount": bonus
+            }
         
         # Gestion damage reduction
         if skill_data.get("damage_reduction"):
             reduction = skill_data.get("damage_reduction", 0.5)
             duration = skill_data.get("duration", 2)
             self.temporary_buffs["defense"] = int(self.player_stats.get("defense", 0) * reduction)
-            return f"Vous avez utilisé {skill_name}! Dégâts réduits de {int(reduction * 100)}% pendant {duration} tours!"
+            return {
+                "message": f"Vous avez utilisé {skill_name}! Dégâts réduits de {int(reduction * 100)}% pendant {duration} tours!",
+                "action": "damage_reduction",
+                "skill_type": skill_type
+            }
         
         damage_multiplier = skill_data.get("damage_multiplier", 1.0)
         hits = skill_data.get("hits", 1)
@@ -862,14 +1007,31 @@ class GameEngine:
         if self.in_combat and self.current_enemy:
             result = f"Vous avez utilisé {skill_name}!\n"
             for i in range(hits):
+                if not self.current_enemy or self.current_enemy["health"] <= 0:
+                    break
                 hit_damage = int(self.player_stats["attack"] * damage_multiplier)
                 hit_damage = max(1, hit_damage - self.current_enemy.get("defense", 0) // 2)
+                # Appliquer le multiplicateur de dégâts de l'arme équipée
+                weapon_name = self.equipped.get("weapon")
+                if weapon_name and weapon_name in ITEMS:
+                    weapon_mult = ITEMS[weapon_name].get("damage_multiplier", 1.0)
+                    if weapon_mult > 1.0:
+                        hit_damage = int(hit_damage * weapon_mult)
+                # Rune: skill_double
+                if self.has_rune_buff("skill_double"):
+                    skill_mult = self.get_rune_buff_value("skill_double")
+                    hit_damage = int(hit_damage * skill_mult)
                 self.current_enemy["health"] -= hit_damage
                 total_damage += hit_damage
                 result += f"Hit {i+1}: {hit_damage} dégâts\n"
-            
+
+            # Tick des buffs de runes
+            self.tick_rune_buffs()
             self.enemy_health = self.current_enemy.get("health", 0)
             result += f"Dégâts totaux: {total_damage}\n"
+            
+            # Déterminer si c'est un coup critique pour les compétences
+            is_critical = random.random() < 0.15
             
             if self.current_enemy["health"] <= 0:
                 loot = self.get_loot(self.current_enemy.get("level", 1))
@@ -878,10 +1040,9 @@ class GameEngine:
                 enemy_name = self.current_enemy["name"]
                 
                 self.player_stats["gold"] += gold_gain
-                # Mettre à jour la progression des quêtes SEPAREMENT pour éviter la double comptabilisation
-                self.update_quest_progress(enemy_name=enemy_name)  # Quêtes de type "tuer X ennemis"
-                self.update_quest_progress(gold_gain=gold_gain)     # Quêtes de type "gold"
-                self.add_exp(exp_gain)  # add_exp appellera update_quest_progress(exp_gain) pour les quêtes d'XP
+                self.update_quest_progress(enemy_name=enemy_name)
+                self.update_quest_progress(gold_gain=gold_gain)
+                self.add_exp(exp_gain)
                 self.total_enemies_defeated += 1
                 
                 if self.current_enemy.get("is_boss"):
@@ -894,16 +1055,39 @@ class GameEngine:
                     for item, qty in loot.items():
                         self.inventory[item] = self.inventory.get(item, 0) + qty
                         result += f"Butin: {item} (x{qty})\n"
-                
+
+                rune_drop = self.drop_rune(self.current_enemy.get("level", 1))
+                if rune_drop:
+                    result += f"Rune : {rune_drop}\n"
+
                 self.in_combat = False
                 self.current_enemy = None
                 self.enemy_health = 0
                 self.enemy_max_health = 0
-            return result
-        return f"Vous avez utilisé {skill_name}! (Hors combat)"
+                return {
+                    "message": result,
+                    "action": "kill",
+                    "skill_type": skill_type,
+                    "total_damage": total_damage,
+                    "is_critical": is_critical,
+                    "enemy_defeated": True
+                }
+            return {
+                "message": result,
+                "action": "skill_attack",
+                "skill_type": skill_type,
+                "total_damage": total_damage,
+                "is_critical": is_critical,
+                "hits": hits
+            }
+        return {
+            "message": f"Vous avez utilisé {skill_name}! (Hors combat)",
+            "action": "none",
+            "skill_type": skill_type
+        }
     
     def flee_combat(self):
-        if not self.in_combat:
+        if not self.in_combat or not self.current_enemy:
             return "Vous n'êtes pas en combat!"
         if random.random() < 0.5:
             self.in_combat = False
@@ -966,14 +1150,18 @@ class GameEngine:
         if difficulty not in DIFFICULTY_SETTINGS:
             return "Difficulté invalide!"
         self.difficulty = difficulty
-        settings = DIFFICULTY_SETTINGS[difficulty]
-        if difficulty == "facile":
-            self.boss_spawn_chance = 0.05
-        elif difficulty == "moyen":
-            self.boss_spawn_chance = 0.15
-        elif difficulty == "difficile":
-            self.boss_spawn_chance = 0.30
+        
+        # Utilisation de match/case pour les paramètres de difficulté
+        match difficulty:
+            case "facile":
+                self.boss_spawn_chance = 0.05
+            case "moyen":
+                self.boss_spawn_chance = 0.15
+            case "difficile":
+                self.boss_spawn_chance = 0.30
+        
         return f"Difficulté définie à {difficulty}!"
+        
 
     def update_quest_progress(self, enemy_name=None, exp_gain=0, gold_gain=0):
         """Met à jour la progression de toutes les quêtes actives"""
@@ -995,34 +1183,29 @@ class GameEngine:
             if quest_id not in self.quest_progress:
                 self.quest_progress[quest_id] = 0
             
-            # Quest type: kill specific enemy
+            # Utilisation de match/case pour les types de quêtes
             if 'target_enemy' in quest_data:
                 target_enemy = quest_data['target_enemy']
                 if enemy_name == target_enemy:
                     self.quest_progress[quest_id] += 1
-                    # Check if quest is completed
                     if self.quest_progress[quest_id] >= quest_data.get('target_count', 1):
                         self.complete_quest(quest_id)
-            
-            # Quest type: collect gold
-            elif quest_data.get('type') == 'gold':
-                target_gold = quest_data.get('target_gold', 0)
-                current_gold = self.quest_progress.get(quest_id, 0)
-                new_gold = current_gold + gold_gain
-                self.quest_progress[quest_id] = new_gold
-                # Check if quest is completed
-                if new_gold >= target_gold:
-                    self.complete_quest(quest_id)
-            
-            # Quest type: gain exp
-            elif quest_data.get('type') == 'exp':
-                target_exp = quest_data.get('target_exp', 0)
-                current_exp = self.quest_progress.get(quest_id, 0)
-                new_exp = current_exp + exp_gain
-                self.quest_progress[quest_id] = new_exp
-                # Check if quest is completed
-                if new_exp >= target_exp:
-                    self.complete_quest(quest_id)
+            else:
+                match quest_data.get('type'):
+                    case 'gold':
+                        target_gold = quest_data.get('target_gold', 0)
+                        current_gold = self.quest_progress.get(quest_id, 0)
+                        new_gold = current_gold + gold_gain
+                        self.quest_progress[quest_id] = new_gold
+                        if new_gold >= target_gold:
+                            self.complete_quest(quest_id)
+                    case 'exp':
+                        target_exp = quest_data.get('target_exp', 0)
+                        current_exp = self.quest_progress.get(quest_id, 0)
+                        new_exp = current_exp + exp_gain
+                        self.quest_progress[quest_id] = new_exp
+                        if new_exp >= target_exp:
+                            self.complete_quest(quest_id)
     
     def complete_quest(self, quest_id):
         if quest_id not in DAILY_QUESTS:
@@ -1032,26 +1215,28 @@ class GameEngine:
         
         quest_data = DAILY_QUESTS[quest_id]
         
-        # Vérifier que la quête est effectivement accomplie
+        # Vérifier que la quête est effectivement accomplie avec match/case
         quest_completed = False
         if 'target_enemy' in quest_data:
             # Quête de type "tuer X ennemis"
             target_count = quest_data.get('target_count', 1)
             if self.quest_progress.get(quest_id, 0) >= target_count:
                 quest_completed = True
-        elif quest_data.get('type') == 'gold':
-            # Quête de type "amasser X or"
-            target_gold = quest_data.get('target_gold', 0)
-            if self.quest_progress.get(quest_id, 0) >= target_gold:
-                quest_completed = True
-        elif quest_data.get('type') == 'exp':
-            # Quête de type "gagner X XP"
-            target_exp = quest_data.get('target_exp', 0)
-            if self.quest_progress.get(quest_id, 0) >= target_exp:
-                quest_completed = True
         else:
-            # Quête sans type spécifique, on la considère comme accomplie
-            quest_completed = True
+            match quest_data.get('type'):
+                case 'gold':
+                    # Quête de type "amasser X or"
+                    target_gold = quest_data.get('target_gold', 0)
+                    if self.quest_progress.get(quest_id, 0) >= target_gold:
+                        quest_completed = True
+                case 'exp':
+                    # Quête de type "gagner X XP"
+                    target_exp = quest_data.get('target_exp', 0)
+                    if self.quest_progress.get(quest_id, 0) >= target_exp:
+                        quest_completed = True
+                case _:
+                    # Quête sans type spécifique, on la considère comme accomplie
+                    quest_completed = True
         
         if not quest_completed:
             return False
@@ -1078,7 +1263,154 @@ class GameEngine:
         if len(self.boss_defeated) >= len(BOSSES):
             self.game_won = True
         return self.game_won
-    
+
+    # ==================== SYSTÈME DE RUNES ====================
+
+    def toggle_runes(self):
+        self.show_runes = not self.show_runes
+        return self.show_runes
+
+    def drop_rune(self, enemy_level):
+        """Tente de faire tomber une rune après un combat."""
+        if random.random() > RUNE_DROP_CHANCE:
+            return None
+        rune_name = random.choice(list(RUNES.keys()))
+        # Rareté basée sur le niveau de l'ennemi
+        weights = []
+        for rarity_data in RUNE_RARITIES.values():
+            weights.append(rarity_data["drop_weight"])
+        # Ennemis de haut niveau = plus de chance de runes majeures/anciennes
+        if enemy_level >= 15:
+            weights = [40, 35, 25]
+        elif enemy_level >= 8:
+            weights = [50, 35, 15]
+        rarity = random.choices(list(RUNE_RARITIES.keys()), weights=weights, k=1)[0]
+        rune_key = f"{rune_name}|{rarity}"
+        self.rune_inventory[rune_key] = self.rune_inventory.get(rune_key, 0) + 1
+        rune_data = RUNES[rune_name]
+        rarity_data = RUNE_RARITIES[rarity]
+        return f"{rarity_data['icon']} {rune_data['icon']} {rune_name} ({rarity})"
+
+    def craft_rune(self, recipe_name):
+        """Combine 2 runes pour créer un buff temporaire."""
+        if recipe_name not in RUNE_RECIPES:
+            return "Recette inconnue !"
+        recipe = RUNE_RECIPES[recipe_name]
+        needed_runes = recipe["runes"]
+        # Vérifier que le joueur possède les runes requises (toute rareté)
+        found_runes = []
+        used_keys = []
+        for needed in needed_runes:
+            best_key = None
+            best_mult = 0
+            for key, qty in self.rune_inventory.items():
+                rune_name = key.split("|")[0]
+                rune_rarity = key.split("|")[1]
+                if rune_name == needed and qty > 0:
+                    mult = RUNE_RARITIES[rune_rarity]["multiplier"]
+                    if mult > best_mult:
+                        best_mult = mult
+                        best_key = key
+            if best_key:
+                found_runes.append(best_key)
+                used_keys.append(best_key)
+            else:
+                return f"Rune manquante : {needed}"
+        if len(found_runes) < len(needed_runes):
+            return "Runes insuffisantes pour cette recette."
+        # Consommer les runes
+        best_multiplier = 1.0
+        for key in used_keys:
+            rune_rarity = key.split("|")[1]
+            best_multiplier = max(best_multiplier, RUNE_RARITIES[rune_rarity]["multiplier"])
+            self.rune_inventory[key] -= 1
+            if self.rune_inventory[key] <= 0:
+                del self.rune_inventory[key]
+        # Créer le buff
+        buff = {
+            "name": recipe_name,
+            "icon": recipe["icon"],
+            "effect": recipe["effect"],
+            "value": int(recipe["value"] * best_multiplier),
+            "duration": recipe["duration"],
+            "turns_left": recipe["duration"],
+            "combat_text": recipe["combat_text"]
+        }
+        # Remplacer ou ajouter le buff
+        self.active_rune_buffs = [b for b in self.active_rune_buffs if b["name"] != recipe_name]
+        self.active_rune_buffs.append(buff)
+        mult_text = f" (x{best_multiplier})" if best_multiplier > 1.0 else ""
+        return f"{recipe['icon']} {recipe_name} activé pour {recipe['duration']} tours{mult_text} !"
+
+    def get_rune_buff_summary(self):
+        """Retourne un résumé des buffs de runes actifs."""
+        return [{"name": b["name"], "icon": b["icon"], "turns_left": b["turns_left"]}
+                for b in self.active_rune_buffs]
+
+    def tick_rune_buffs(self):
+        """Réduit la durée des buffs de runes d'un tour."""
+        for buff in self.active_rune_buffs:
+            buff["turns_left"] -= 1
+        self.active_rune_buffs = [b for b in self.active_rune_buffs if b["turns_left"] > 0]
+
+    def get_rune_buff_value(self, effect_type):
+        """Retourne la valeur cumulée d'un type d'effet de rune."""
+        total = 0
+        for buff in self.active_rune_buffs:
+            if buff["effect"] == effect_type:
+                total += buff["value"]
+        return total
+
+    def has_rune_buff(self, effect_type):
+        """Vérifie si un type de buff de rune est actif."""
+        return any(b["effect"] == effect_type for b in self.active_rune_buffs)
+
+    def consume_rune_buff(self, effect_type):
+        """Consomme un buff de rune à usage unique."""
+        self.active_rune_buffs = [b for b in self.active_rune_buffs if b["effect"] != effect_type]
+
+    def get_runes_display(self):
+        """Retourne les données de runes pour l'affichage."""
+        inventory = []
+        for key, qty in self.rune_inventory.items():
+            parts = key.split("|")
+            rune_name = parts[0]
+            rune_rarity = parts[1] if len(parts) > 1 else "mineure"
+            rune_data = RUNES.get(rune_name, {})
+            rarity_data = RUNE_RARITIES.get(rune_rarity, {})
+            inventory.append({
+                "key": key,
+                "name": rune_name,
+                "icon": rune_data.get("icon", "?"),
+                "rarity": rune_rarity,
+                "rarity_icon": rarity_data.get("icon", ""),
+                "description": rune_data.get("description", ""),
+                "quantity": qty
+            })
+        recipes = []
+        for name, data in RUNE_RECIPES.items():
+            can_craft = True
+            for needed in data["runes"]:
+                has_it = any(k.split("|")[0] == needed and v > 0 for k, v in self.rune_inventory.items())
+                if not has_it:
+                    can_craft = False
+                    break
+            recipes.append({
+                "name": name,
+                "icon": data["icon"],
+                "description": data["description"],
+                "runes": [RUNES.get(r, {}).get("icon", "?") + " " + r.replace("Rune de ", "") for r in data["runes"]],
+                "effect": data["effect"],
+                "value": data["value"],
+                "duration": data["duration"],
+                "can_craft": can_craft
+            })
+        return {
+            "inventory": inventory,
+            "recipes": recipes,
+            "active_buffs": self.active_rune_buffs
+        }
+
     def toggle_options(self):
         self.show_options = not self.show_options
         return self.show_options

@@ -235,8 +235,8 @@ PROGRESSIVE_SKILLS = {
 # Systeme de quetes quotidiennes
 DAILY_QUESTS = {
     "Tueur de Gobelins": {
-        "description": "Vaincre 5 Gobelins",
-        "target_enemy": "Gobelin",
+        "description": "Vaincre 5 Goblins",
+        "target_enemy": "Goblin",
         "target_count": 5,
         "reward_exp": 500,
         "reward_gold": 100,
@@ -317,34 +317,147 @@ LOOT_TABLE = {
 # Items par rareté pour le loot
 LOOT_BY_RARITY = {
     "commun": [
+        # Armes
         "Épée de Fer",
         "Arc Longue Portée",
         "Bâton de Mana",
+        "Dague Rouillée",
+        "Massue en Bois",
+        "Lance de Chasse",
+        "Fouet de Cuir",
+        "Couteau de Lancer",
+        "Épée Acérée",
+        "Arc de Précision",
+        # Armures
         "Armure Cuir",
+        "Tunique de Voyageur",
+        "Plastron en Bronze",
+        "Bouclier en Bois",
+        "Armure Légère",
+        # Accessoires
+        "Anneau de Santé",
+        "Anneau de Force",
+        "Anneau de Protection",
+        "Pendentif en Cuivre",
+        "Bracelet de Force",
+        "Amulette de Vitalité",
+        "Bague en Fer",
+        # Consommables
         "Potion Santé",
-        "Potion Mana"
+        "Potion Mana",
+        "Herbe Médicinale",
+        "Baie Énergétique",
+        "Pain de Voyage"
     ],
     "rare": [
+        # Armes
         "Hache de Bataille",
         "Arc de Chasse",
         "Bâton Flamboyant",
+        "Épée d'Acier Trempé",
+        "Hache Jumelle",
+        "Arc Renforcé",
+        "Bâton Runique",
+        "Faux de Guerre",
+        "Masse d'Armes",
+        "Arbalète Légère",
+        "Épée de Lumière",
+        "Bâton Glacial",
+        "Sceptre Arcaniste",
+        "Arc Sylvain",
+        "Arc Flamboyant",
+        # Armures
         "Armure de Fer",
+        "Cotte de Mailles",
+        "Bouclier de Fer",
+        "Cape de Protection",
+        "Casque de Guerre",
+        "Armure Acier",
+        "Armure du Mage",
+        # Accessoires
+        "Amulette de Mana",
+        "Anneau du Guerrier",
+        "Anneau du Mage",
+        "Amulette du Chasseur",
+        "Collier de Griffes",
+        "Talisman de Mana",
+        "Boucle d'Oreille d'Agilité",
+        # Consommables
         "Potion Santé Majeure",
         "Potion Mana Majeure",
         "Potion Force",
-        "Potion Protection"
+        "Potion Protection",
+        "Potion Poison",
+        "Potion d'Acier",
+        "Potion de Rage",
+        "Potion de Rempart",
+        "Elixir Mineur"
     ],
     "epique": [
+        # Armes
         "Marteau de Guerre",
         "Arc Élémental",
         "Bâton du Sage",
+        "Épée Vampirique",
+        "Trident des Abysses",
+        "Katana Céleste",
+        "Bâton de Liche",
+        "Arc SPECTRAL",
+        "Double Hache Chaos",
+        "Lame Sombre",
+        "Glaive du Guerrier",
+        "Orbe de Puissance",
+        "Bâton Infernal",
+        "Arc du Chasseur Légendaire",
+        "Arc Glacé",
+        # Armures
         "Armure Dragon",
-        "Potion Force",
-        "Potion Protection"
+        "Armure en Obsidienne",
+        "Robe d'Archimage",
+        "Bouclier du Paladin",
+        "Armure Mithril",
+        "Armure de Brume",
+        "Armure Abyssale",
+        # Accessoires
+        "Couronne de Pouvoir",
+        "Anneau de l'Archimage",
+        "Bague de Régénération",
+        "Pendentif du Dragon",
+        "Bracelet d'Éther",
+        "Ceinture de Titan",
+        # Consommables
+        "Élixir de Vie",
+        "Élixir de Mana Cosmique",
+        "Potion Berserker",
+        "Potion d'Invulnérabilité",
+        "Élixir Phénix"
     ],
     "legendaire": [
+        # Armes
+        "Lame Primordiale",
         "Épée de Feu",
-        "Éclair Éternel"
+        "Éclair Éternel",
+        "Excalibur",
+        "Gungnir, Lance d'Odin",
+        "Arc d'Artémis",
+        "Bâton de Merlin",
+        "Lame du Néant",
+        "Mjolnir",
+        # Armures
+        "Armure Céleste",
+        "Armure d'Achille",
+        "Égide d'Athéna",
+        "Manteau des Ombres",
+        "Armure Sacrée",
+        # Accessoires
+        "Anneau Infini",
+        "Couronne du Roi Démon",
+        "Oeil de Ra",
+        "Anneau Unique",
+        "Amulette de l'Immortel",
+        # Consommables
+        "Ambroisie Divine",
+        "Potion de Résurrection"
     ]
 }
 
@@ -356,6 +469,7 @@ ITEMS = {
         "attack_bonus": 7,
         "class": "Guerrier",
         "rarity": "commun",
+       "required_level": 3,
         "price": 80,
         "description": "Épée standard pour guerrier"
     },
@@ -364,6 +478,7 @@ ITEMS = {
         "attack_bonus": 10,
         "class": "Guerrier",
         "rarity": "rare",
+       "required_level": 6,
         "price": 150,
         "description": "Hache puissante pour combat rapproché"
     },
@@ -372,6 +487,7 @@ ITEMS = {
         "attack_bonus": 12,
         "class": "Guerrier",
         "rarity": "epique",
+       "required_level": 12,
         "price": 250,
         "description": "Écrase les ennemis"
     },
@@ -383,6 +499,7 @@ ITEMS = {
         "mana_bonus": 20,
         "class": "Mage",
         "rarity": "commun",
+       "required_level": 3,
         "price": 80,
         "description": "Amplifie la magie"
     },
@@ -392,6 +509,7 @@ ITEMS = {
         "mana_bonus": 40,
         "class": "Mage",
         "rarity": "rare",
+       "required_level": 7,
         "price": 150,
         "description": "Lance des feux puissants"
     },
@@ -401,6 +519,7 @@ ITEMS = {
         "mana_bonus": 60,
         "class": "Mage",
         "rarity": "epique",
+       "required_level": 14,
         "price": 250,
         "description": "Ancien bâton de grand pouvoir"
     },
@@ -411,6 +530,7 @@ ITEMS = {
         "attack_bonus": 6,
         "class": "Archer",
         "rarity": "commun",
+       "required_level": 2,
         "price": 80,
         "description": "Arc de chasseur"
     },
@@ -419,6 +539,7 @@ ITEMS = {
         "attack_bonus": 9,
         "class": "Archer",
         "rarity": "rare",
+       "required_level": 6,
         "price": 150,
         "description": "Arc parfaitement équilibré"
     },
@@ -427,6 +548,7 @@ ITEMS = {
         "attack_bonus": 13,
         "class": "Archer",
         "rarity": "epique",
+       "required_level": 12,
         "price": 250,
         "description": "Flèches en feu et glaçon"
     },
@@ -436,12 +558,14 @@ ITEMS = {
         "type": "armor",
         "defense_bonus": 2,
         "price": 40,
+       "required_level": 1,
         "description": "Armure légère en cuir"
     },
     "Armure de Fer": {
         "type": "armor",
         "defense_bonus": 5,
         "rarity": "commun",
+       "required_level": 2,
         "price": 100,
         "description": "Armure solide en fer"
     },
@@ -449,6 +573,7 @@ ITEMS = {
         "type": "armor",
         "defense_bonus": 10,
         "rarity": "epique",
+       "required_level": 12,
         "price": 300,
         "description": "Armure faite de peau de dragon"
     },
@@ -456,6 +581,7 @@ ITEMS = {
         "type": "armor",
         "defense_bonus": 15,
         "rarity": "legendaire",
+       "required_level": 20,
         "price": 500,
         "description": "Armure des anges"
     },
@@ -465,6 +591,7 @@ ITEMS = {
         "type": "consumable",
         "heal": 50,
         "rarity": "commun",
+       "required_level": 1,
         "price": 20,
         "description": "Restaure 50 points de santé"
     },
@@ -472,6 +599,7 @@ ITEMS = {
         "type": "consumable",
         "heal": 150,
         "rarity": "rare",
+       "required_level": 3,
         "price": 50,
         "description": "Restaure 150 points de santé"
     },
@@ -479,6 +607,7 @@ ITEMS = {
         "type": "consumable",
         "mana": 30,
         "rarity": "commun",
+       "required_level": 1,
         "price": 25,
         "description": "Restaure 30 points de mana"
     },
@@ -486,6 +615,7 @@ ITEMS = {
         "type": "consumable",
         "mana": 100,
         "rarity": "rare",
+       "required_level": 3,
         "price": 60,
         "description": "Restaure 100 points de mana"
     },
@@ -494,6 +624,7 @@ ITEMS = {
         "attack_boost": 10,
         "duration": 3,
         "rarity": "epique",
+       "required_level": 10,
         "price": 80,
         "description": "+10 Attack pendant 3 tours"
     },
@@ -502,6 +633,7 @@ ITEMS = {
         "defense_boost": 10,
         "duration": 3,
         "rarity": "epique",
+       "required_level": 10,
         "price": 80,
         "description": "+10 Defense pendant 3 tours"
     },
@@ -511,6 +643,7 @@ ITEMS = {
         "type": "weapon",
         "attack_bonus": 50,
         "rarity": "legendaire",
+       "required_level": 24,
         "class": "Guerrier",
         "price": 0,
         "description": "Épée légendaire enflammée"
@@ -520,6 +653,7 @@ ITEMS = {
         "attack_bonus": 40,
         "mana_bonus": 80,
         "rarity": "legendaire",
+       "required_level": 24,
         "class": "Mage",
         "price": 0,
         "description": "Bâton du dieu de l'orage"
@@ -531,6 +665,7 @@ ITEMS = {
        "attack_bonus": 8,
        "class": "Guerrier",
        "rarity": "commun",
+       "required_level": 3,
        "price": 100,
        "description": "Épée bien affûtée"
     },
@@ -540,6 +675,7 @@ ITEMS = {
        "defense_bonus": 2,
        "class": "Guerrier",
        "rarity": "rare",
+       "required_level": 7,
        "price": 180,
        "description": "Épée sacrée brillante"
     },
@@ -549,6 +685,7 @@ ITEMS = {
        "health_bonus": 20,
        "class": "Guerrier",
        "rarity": "epique",
+       "required_level": 13,
        "price": 280,
        "description": "Lame maudite qui renforce le porteur"
     },
@@ -558,6 +695,7 @@ ITEMS = {
        "defense_bonus": 1,
        "class": "Guerrier",
        "rarity": "epique",
+       "required_level": 13,
        "price": 300,
        "description": "Arme légendaire du guerrier ancien"
     },
@@ -570,6 +708,7 @@ ITEMS = {
        "defense_bonus": 1,
        "class": "Mage",
        "rarity": "rare",
+       "required_level": 7,
        "price": 160,
        "description": "Bâton de glace éternelle"
     },
@@ -579,6 +718,7 @@ ITEMS = {
        "mana_bonus": 50,
        "class": "Mage",
        "rarity": "rare",
+       "required_level": 8,
        "price": 170,
        "description": "Sceptre des arcanes"
     },
@@ -589,6 +729,7 @@ ITEMS = {
        "health_bonus": 30,
        "class": "Mage",
        "rarity": "epique",
+       "required_level": 15,
        "price": 320,
        "description": "Orbe cosmique d'une puissance infinie"
     },
@@ -598,6 +739,7 @@ ITEMS = {
        "mana_bonus": 65,
        "class": "Mage",
        "rarity": "epique",
+       "required_level": 15,
        "price": 310,
        "description": "Bâton craché par le feu infernal"
     },
@@ -608,6 +750,7 @@ ITEMS = {
        "attack_bonus": 8,
        "class": "Archer",
        "rarity": "commun",
+       "required_level": 3,
        "price": 110,
        "description": "Arc très précis"
     },
@@ -617,6 +760,7 @@ ITEMS = {
        "defense_bonus": 1,
        "class": "Archer",
        "rarity": "rare",
+       "required_level": 6,
        "price": 160,
        "description": "Arc de la forêt ancienne"
     },
@@ -626,6 +770,7 @@ ITEMS = {
        "health_bonus": 15,
        "class": "Archer",
        "rarity": "rare",
+       "required_level": 7,
        "price": 175,
        "description": "Arc qui tire des flèches enflammées"
     },
@@ -636,6 +781,7 @@ ITEMS = {
        "health_bonus": 25,
        "class": "Archer",
        "rarity": "epique",
+       "required_level": 14,
        "price": 350,
        "description": "Arc du grand chasseur d'antan"
     },
@@ -645,6 +791,7 @@ ITEMS = {
        "mana_bonus": 40,
        "class": "Archer",
        "rarity": "epique",
+       "required_level": 14,
        "price": 330,
        "description": "Arc qui tire des flèches glaciales"
     },
@@ -654,6 +801,7 @@ ITEMS = {
        "type": "armor",
        "defense_bonus": 3,
        "rarity": "commun",
+       "required_level": 1,
        "price": 60,
        "description": "Armure légère et flexible"
     },
@@ -661,6 +809,7 @@ ITEMS = {
        "type": "armor",
        "defense_bonus": 7,
        "rarity": "rare",
+       "required_level": 5,
        "price": 120,
        "description": "Armure d'acier renforcé"
     },
@@ -669,6 +818,7 @@ ITEMS = {
        "defense_bonus": 12,
        "health_bonus": 40,
        "rarity": "epique",
+       "required_level": 13,
        "price": 350,
        "description": "Armure légendaire de mithril"
     },
@@ -677,6 +827,7 @@ ITEMS = {
        "defense_bonus": 3,
        "mana_bonus": 50,
        "rarity": "rare",
+       "required_level": 7,
        "price": 140,
        "description": "Tunique magique pour mage"
     },
@@ -685,6 +836,7 @@ ITEMS = {
        "defense_bonus": 8,
        "mana_bonus": 30,
        "rarity": "epique",
+       "required_level": 12,
        "price": 320,
        "description": "Armure spectrale de brume magique"
     },
@@ -693,6 +845,7 @@ ITEMS = {
        "defense_bonus": 11,
        "health_bonus": 50,
        "rarity": "epique",
+       "required_level": 14,
        "price": 340,
        "description": "Armure noire des abysses"
     },
@@ -701,6 +854,7 @@ ITEMS = {
        "defense_bonus": 14,
        "health_bonus": 60,
        "rarity": "legendaire",
+       "required_level": 20,
        "price": 600,
        "description": "Armure benedite par les dieux"
     },
@@ -710,6 +864,7 @@ ITEMS = {
        "type": "accessory",
        "health_bonus": 30,
        "rarity": "commun",
+       "required_level": 2,
        "price": 50,
        "description": "Anneau qui augmente la vitalité"
     },
@@ -717,6 +872,7 @@ ITEMS = {
        "type": "accessory",
        "attack_bonus": 3,
        "rarity": "commun",
+       "required_level": 1,
        "price": 60,
        "description": "Anneau qui augmente l'attaque"
     },
@@ -724,6 +880,7 @@ ITEMS = {
        "type": "accessory",
        "defense_bonus": 3,
        "rarity": "commun",
+       "required_level": 1,
        "price": 60,
        "description": "Anneau qui augmente la défense"
     },
@@ -731,6 +888,7 @@ ITEMS = {
        "type": "accessory",
        "mana_bonus": 40,
        "rarity": "rare",
+       "required_level": 5,
        "price": 120,
        "description": "Amulette qui restaure le mana"
     },
@@ -739,6 +897,7 @@ ITEMS = {
        "attack_bonus": 5,
        "health_bonus": 25,
        "rarity": "rare",
+       "required_level": 6,
        "price": 140,
        "description": "Anneau ancestral des guerriers"
     },
@@ -747,6 +906,7 @@ ITEMS = {
        "mana_bonus": 60,
        "attack_bonus": 2,
        "rarity": "rare",
+       "required_level": 7,
        "price": 150,
        "description": "Anneau qui amplifie la magie"
     },
@@ -755,6 +915,7 @@ ITEMS = {
        "attack_bonus": 4,
        "defense_bonus": 2,
        "rarity": "rare",
+       "required_level": 5,
        "price": 130,
        "description": "Amulette du chasseur de renom"
     },
@@ -764,6 +925,7 @@ ITEMS = {
        "health_bonus": 50,
        "defense_bonus": 5,
        "rarity": "epique",
+       "required_level": 14,
        "price": 400,
        "description": "Couronne qui confère puissance et prestige"
     },
@@ -772,6 +934,7 @@ ITEMS = {
        "mana_bonus": 100,
        "attack_bonus": 5,
        "rarity": "epique",
+       "required_level": 14,
        "price": 420,
        "description": "Anneau du grand archimage"
     },
@@ -779,6 +942,7 @@ ITEMS = {
        "type": "accessory",
        "health_bonus": 80,
        "rarity": "epique",
+       "required_level": 13,
        "price": 380,
        "description": "Bague qui régénère la santé constamment"
     },
@@ -789,6 +953,7 @@ ITEMS = {
        "health_bonus": 60,
        "mana_bonus": 50,
        "rarity": "legendaire",
+       "required_level": 22,
        "price": 800,
        "description": "Anneau qui balance tous les attributs parfaitement"
     },
@@ -798,6 +963,7 @@ ITEMS = {
        "type": "consumable",
        "heal": 200,
        "rarity": "epique",
+       "required_level": 10,
        "price": 120,
        "description": "Restaure 200 points de santé d'un coup"
     },
@@ -805,6 +971,7 @@ ITEMS = {
        "type": "consumable",
        "mana": 150,
        "rarity": "epique",
+       "required_level": 10,
        "price": 130,
        "description": "Restaure 150 points de mana d'un coup"
     },
@@ -813,6 +980,7 @@ ITEMS = {
        "attack_boost": 15,
        "duration": 2,
        "rarity": "rare",
+       "required_level": 3,
        "price": 70,
        "description": "+15 Attack pendant 2 tours (toxine)"
     },
@@ -821,9 +989,603 @@ ITEMS = {
        "defense_boost": 15,
        "duration": 2,
        "rarity": "rare",
+       "required_level": 3,
        "price": 70,
        "description": "+15 Defense pendant 2 tours"
     },
+    # ===== NOUVEAUX ITEMS DE LOOT =====
+
+    # --- ARMES COMMUNES ---
+    "Dague Rouillée": {
+       "type": "weapon",
+       "attack_bonus": 3,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 30,
+       "description": "Une vieille dague encore tranchante"
+    },
+    "Massue en Bois": {
+       "type": "weapon",
+       "attack_bonus": 5,
+       "rarity": "commun",
+       "required_level": 2,
+       "price": 45,
+       "description": "Un gros bâton solide pour cogner"
+    },
+    "Lance de Chasse": {
+       "type": "weapon",
+       "attack_bonus": 6,
+       "rarity": "commun",
+       "required_level": 2,
+       "price": 60,
+       "description": "Lance utilisée par les chasseurs"
+    },
+    "Fouet de Cuir": {
+       "type": "weapon",
+       "attack_bonus": 4,
+       "defense_bonus": 1,
+       "rarity": "commun",
+       "required_level": 2,
+       "price": 50,
+       "description": "Un fouet flexible et rapide"
+    },
+    "Couteau de Lancer": {
+       "type": "weapon",
+       "attack_bonus": 5,
+       "rarity": "commun",
+       "required_level": 2,
+       "price": 55,
+       "description": "Petit couteau équilibré pour le lancer"
+    },
+
+    # --- ARMURES COMMUNES ---
+    "Tunique de Voyageur": {
+       "type": "armor",
+       "defense_bonus": 1,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 25,
+       "description": "Vêtement épais offrant une protection minime"
+    },
+    "Plastron en Bronze": {
+       "type": "armor",
+       "defense_bonus": 3,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 55,
+       "description": "Plastron bon marché en bronze"
+    },
+    "Bouclier en Bois": {
+       "type": "armor",
+       "defense_bonus": 2,
+       "health_bonus": 10,
+       "rarity": "commun",
+       "required_level": 2,
+       "price": 45,
+       "description": "Bouclier simple mais efficace"
+    },
+
+    # --- ACCESSOIRES COMMUNS ---
+    "Pendentif en Cuivre": {
+       "type": "accessory",
+       "health_bonus": 15,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 35,
+       "description": "Un modeste pendentif porte-bonheur"
+    },
+    "Bracelet de Force": {
+       "type": "accessory",
+       "attack_bonus": 2,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 40,
+       "description": "Bracelet en cuir renforcé"
+    },
+    "Amulette de Vitalité": {
+       "type": "accessory",
+       "health_bonus": 20,
+       "rarity": "commun",
+       "required_level": 2,
+       "price": 45,
+       "description": "Petite amulette qui renforce le corps"
+    },
+    "Bague en Fer": {
+       "type": "accessory",
+       "defense_bonus": 2,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 40,
+       "description": "Bague solide en fer forgé"
+    },
+
+    # --- CONSOMMABLES COMMUNS ---
+    "Herbe Médicinale": {
+       "type": "consumable",
+       "heal": 30,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 10,
+       "description": "Plante sauvage aux vertus curatives"
+    },
+    "Baie Énergétique": {
+       "type": "consumable",
+       "mana": 20,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 15,
+       "description": "Petite baie qui restaure un peu de mana"
+    },
+    "Pain de Voyage": {
+       "type": "consumable",
+       "heal": 20,
+       "rarity": "commun",
+       "required_level": 1,
+       "price": 8,
+       "description": "Nourriture simple qui redonne des forces"
+    },
+
+    # --- ARMES RARES ---
+    "Épée d'Acier Trempé": {
+       "type": "weapon",
+       "attack_bonus": 9,
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 130,
+       "description": "Lame forgée dans un acier de qualité"
+    },
+    "Hache Jumelle": {
+       "type": "weapon",
+       "attack_bonus": 8,
+       "defense_bonus": 1,
+       "class": "Guerrier",
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 140,
+       "description": "Deux petites haches maniées en duo"
+    },
+    "Arc Renforcé": {
+       "type": "weapon",
+       "attack_bonus": 8,
+       "class": "Archer",
+       "rarity": "rare",
+       "required_level": 5,
+       "price": 120,
+       "description": "Arc aux branches renforcées de métal"
+    },
+    "Bâton Runique": {
+       "type": "weapon",
+       "attack_bonus": 6,
+       "mana_bonus": 25,
+       "class": "Mage",
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 130,
+       "description": "Bâton gravé de runes anciennes"
+    },
+    "Faux de Guerre": {
+       "type": "weapon",
+       "attack_bonus": 10,
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 145,
+       "description": "Une faux transformée en arme redoutable"
+    },
+    "Masse d'Armes": {
+       "type": "weapon",
+       "attack_bonus": 9,
+       "defense_bonus": 2,
+       "class": "Guerrier",
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 135,
+       "description": "Masse lourde qui écrase les armures"
+    },
+    "Arbalète Légère": {
+       "type": "weapon",
+       "attack_bonus": 9,
+       "class": "Archer",
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 140,
+       "description": "Arbalète compacte et rapide à recharger"
+    },
+
+    # --- ARMURES RARES ---
+    "Cotte de Mailles": {
+       "type": "armor",
+       "defense_bonus": 5,
+       "rarity": "rare",
+       "required_level": 5,
+       "price": 110,
+       "description": "Armure en anneaux métalliques entrelacés"
+    },
+    "Bouclier de Fer": {
+       "type": "armor",
+       "defense_bonus": 6,
+       "health_bonus": 15,
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 125,
+       "description": "Grand bouclier rond en fer"
+    },
+    "Cape de Protection": {
+       "type": "armor",
+       "defense_bonus": 3,
+       "mana_bonus": 15,
+       "rarity": "rare",
+       "required_level": 5,
+       "price": 100,
+       "description": "Cape enchantée qui dévie les sorts"
+    },
+    "Casque de Guerre": {
+       "type": "armor",
+       "defense_bonus": 4,
+       "health_bonus": 20,
+       "rarity": "rare",
+       "required_level": 5,
+       "price": 115,
+       "description": "Casque en acier protégeant la tête"
+    },
+
+    # --- ACCESSOIRES RARES ---
+    "Collier de Griffes": {
+       "type": "accessory",
+       "attack_bonus": 4,
+       "rarity": "rare",
+       "required_level": 5,
+       "price": 110,
+       "description": "Collier fait de griffes de monstres"
+    },
+    "Talisman de Mana": {
+       "type": "accessory",
+       "mana_bonus": 45,
+       "rarity": "rare",
+       "required_level": 6,
+       "price": 120,
+       "description": "Talisman pulsant d'énergie magique"
+    },
+    "Boucle d'Oreille d'Agilité": {
+       "type": "accessory",
+       "attack_bonus": 2,
+       "defense_bonus": 2,
+       "rarity": "rare",
+       "required_level": 5,
+       "price": 100,
+       "description": "Boucle d'oreille qui améliore les réflexes"
+    },
+
+    # --- CONSOMMABLES RARES ---
+    "Potion de Rage": {
+       "type": "consumable",
+       "attack_boost": 12,
+       "duration": 3,
+       "rarity": "rare",
+       "required_level": 3,
+       "price": 65,
+       "description": "+12 Attack pendant 3 tours"
+    },
+    "Potion de Rempart": {
+       "type": "consumable",
+       "defense_boost": 12,
+       "duration": 3,
+       "rarity": "rare",
+       "required_level": 3,
+       "price": 65,
+       "description": "+12 Defense pendant 3 tours"
+    },
+    "Elixir Mineur": {
+       "type": "consumable",
+       "heal": 100,
+       "mana": 50,
+       "rarity": "rare",
+       "required_level": 3,
+       "price": 80,
+       "description": "Restaure 100 HP et 50 MP"
+    },
+
+    # --- ARMES ÉPIQUES ---
+    "Épée Vampirique": {
+       "type": "weapon",
+       "attack_bonus": 13,
+       "health_bonus": 25,
+       "class": "Guerrier",
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 280,
+       "description": "Lame sombre qui draine la vie"
+    },
+    "Trident des Abysses": {
+       "type": "weapon",
+       "attack_bonus": 14,
+       "mana_bonus": 20,
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 290,
+       "description": "Trident maudit des profondeurs"
+    },
+    "Katana Céleste": {
+       "type": "weapon",
+       "attack_bonus": 13,
+       "defense_bonus": 3,
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 275,
+       "description": "Lame fine forgée sous les étoiles"
+    },
+    "Bâton de Liche": {
+       "type": "weapon",
+       "attack_bonus": 12,
+       "mana_bonus": 55,
+       "class": "Mage",
+       "rarity": "epique",
+       "required_level": 14,
+       "price": 300,
+       "description": "Bâton imprégné de nécromancie"
+    },
+    "Arc SPECTRAL": {
+       "type": "weapon",
+       "attack_bonus": 13,
+       "mana_bonus": 20,
+       "class": "Archer",
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 285,
+       "description": "Arc dont les flèches traversent les murs"
+    },
+    "Double Hache Chaos": {
+       "type": "weapon",
+       "attack_bonus": 15,
+       "class": "Guerrier",
+       "rarity": "epique",
+       "required_level": 12,
+       "price": 310,
+       "description": "Deux haches tourbillonnantes de chaos"
+    },
+
+    # --- ARMURES ÉPIQUES ---
+    "Armure en Obsidienne": {
+       "type": "armor",
+       "defense_bonus": 10,
+       "attack_bonus": 3,
+       "rarity": "epique",
+       "required_level": 12,
+       "price": 330,
+       "description": "Armure noire tranchante comme du verre"
+    },
+    "Robe d'Archimage": {
+       "type": "armor",
+       "defense_bonus": 5,
+       "mana_bonus": 60,
+       "health_bonus": 20,
+       "rarity": "epique",
+       "required_level": 14,
+       "price": 340,
+       "description": "Robe tissée de fils magiques"
+    },
+    "Bouclier du Paladin": {
+       "type": "armor",
+       "defense_bonus": 13,
+       "health_bonus": 35,
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 350,
+       "description": "Bouclier sacré des chevaliers de lumière"
+    },
+
+    # --- ACCESSOIRES ÉPIQUES ---
+    "Pendentif du Dragon": {
+       "type": "accessory",
+       "attack_bonus": 6,
+       "health_bonus": 35,
+       "rarity": "epique",
+       "required_level": 12,
+       "price": 380,
+       "description": "Écaille de dragon montée en pendentif"
+    },
+    "Bracelet d'Éther": {
+       "type": "accessory",
+       "mana_bonus": 70,
+       "defense_bonus": 3,
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 390,
+       "description": "Bracelet tissé d'énergie pure"
+    },
+    "Ceinture de Titan": {
+       "type": "accessory",
+       "health_bonus": 60,
+       "defense_bonus": 5,
+       "rarity": "epique",
+       "required_level": 13,
+       "price": 370,
+       "description": "Ceinture portée par les géants anciens"
+    },
+
+    # --- CONSOMMABLES ÉPIQUES ---
+    "Potion Berserker": {
+       "type": "consumable",
+       "attack_boost": 20,
+       "duration": 3,
+       "rarity": "epique",
+       "required_level": 10,
+       "price": 110,
+       "description": "+20 Attack pendant 3 tours"
+    },
+    "Potion d'Invulnérabilité": {
+       "type": "consumable",
+       "defense_boost": 20,
+       "duration": 3,
+       "rarity": "epique",
+       "required_level": 10,
+       "price": 110,
+       "description": "+20 Defense pendant 3 tours"
+    },
+    "Élixir Phénix": {
+       "type": "consumable",
+       "heal": 9999,
+       "rarity": "epique",
+       "required_level": 10,
+       "price": 200,
+       "description": "Restaure toute la santé d'un coup"
+    },
+
+    # --- ARMES LÉGENDAIRES ---
+    "Lame Primordiale": {
+       "type": "weapon",
+       "attack_bonus": 8,
+       "damage_multiplier": 2.0,
+       "rarity": "legendaire",
+       "required_level": 1,
+       "price": 0,
+       "description": "Une lame ancienne qui double les dégâts infligés"
+    },
+    "Excalibur": {
+       "type": "weapon",
+       "attack_bonus": 45,
+       "defense_bonus": 10,
+       "health_bonus": 50,
+       "class": "Guerrier",
+       "rarity": "legendaire",
+       "required_level": 25,
+       "price": 0,
+       "description": "L'épée du roi légendaire"
+    },
+    "Gungnir, Lance d'Odin": {
+       "type": "weapon",
+       "attack_bonus": 50,
+       "rarity": "legendaire",
+       "required_level": 24,
+       "price": 0,
+       "description": "Lance divine qui ne manque jamais sa cible"
+    },
+    "Arc d'Artémis": {
+       "type": "weapon",
+       "attack_bonus": 42,
+       "defense_bonus": 5,
+       "mana_bonus": 30,
+       "class": "Archer",
+       "rarity": "legendaire",
+       "required_level": 24,
+       "price": 0,
+       "description": "Arc de la déesse de la chasse"
+    },
+    "Bâton de Merlin": {
+       "type": "weapon",
+       "attack_bonus": 35,
+       "mana_bonus": 100,
+       "health_bonus": 40,
+       "class": "Mage",
+       "rarity": "legendaire",
+       "required_level": 25,
+       "price": 0,
+       "description": "Le bâton du plus grand enchanteur"
+    },
+    "Lame du Néant": {
+       "type": "weapon",
+       "attack_bonus": 55,
+       "rarity": "legendaire",
+       "required_level": 24,
+       "price": 0,
+       "description": "Une lame qui tranche la réalité elle-même"
+    },
+    "Mjolnir": {
+       "type": "weapon",
+       "attack_bonus": 48,
+       "defense_bonus": 8,
+       "class": "Guerrier",
+       "rarity": "legendaire",
+       "required_level": 24,
+       "price": 0,
+       "description": "Le marteau du dieu du tonnerre"
+    },
+
+    # --- ARMURES LÉGENDAIRES ---
+    "Armure d'Achille": {
+       "type": "armor",
+       "defense_bonus": 18,
+       "health_bonus": 80,
+       "rarity": "legendaire",
+       "required_level": 22,
+       "price": 0,
+       "description": "Armure quasi invulnérable du héros grec"
+    },
+    "Égide d'Athéna": {
+       "type": "armor",
+       "defense_bonus": 20,
+       "health_bonus": 50,
+       "mana_bonus": 30,
+       "rarity": "legendaire",
+       "required_level": 22,
+       "price": 0,
+       "description": "Le bouclier divin de la sagesse"
+    },
+    "Manteau des Ombres": {
+       "type": "armor",
+       "defense_bonus": 12,
+       "attack_bonus": 8,
+       "mana_bonus": 40,
+       "rarity": "legendaire",
+       "required_level": 20,
+       "price": 0,
+       "description": "Cape vivante qui absorbe la lumière"
+    },
+
+    # --- ACCESSOIRES LÉGENDAIRES ---
+    "Couronne du Roi Démon": {
+       "type": "accessory",
+       "attack_bonus": 12,
+       "health_bonus": 70,
+       "defense_bonus": 8,
+       "mana_bonus": 40,
+       "rarity": "legendaire",
+       "required_level": 22,
+       "price": 0,
+       "description": "Couronne maudite d'un roi déchu"
+    },
+    "Oeil de Ra": {
+       "type": "accessory",
+       "attack_bonus": 10,
+       "mana_bonus": 80,
+       "rarity": "legendaire",
+       "required_level": 20,
+       "price": 0,
+       "description": "L'oeil du dieu solaire égyptien"
+    },
+    "Anneau Unique": {
+       "type": "accessory",
+       "attack_bonus": 15,
+       "defense_bonus": 10,
+       "health_bonus": 80,
+       "mana_bonus": 60,
+       "rarity": "legendaire",
+       "required_level": 24,
+       "price": 0,
+       "description": "Un anneau pour les gouverner tous"
+    },
+
+    # --- CONSOMMABLES LÉGENDAIRES ---
+    "Ambroisie Divine": {
+       "type": "consumable",
+       "heal": 9999,
+       "mana": 9999,
+       "rarity": "legendaire",
+       "required_level": 18,
+       "price": 0,
+       "description": "Nectar des dieux, restaure tout"
+    },
+    "Potion de Résurrection": {
+       "type": "consumable",
+       "heal": 9999,
+       "attack_boost": 25,
+       "defense_boost": 25,
+       "duration": 5,
+       "rarity": "legendaire",
+       "required_level": 18,
+       "price": 0,
+       "description": "Potion mythique qui ramène de la mort"
+    },
+
     # ===== Items Zone 2 (nouveaux objets) =====
     "Bâton des Abysses": {
        "type": "weapon",
@@ -831,6 +1593,7 @@ ITEMS = {
        "mana_bonus": 50,
        "class": "Mage",
        "rarity": "epique",
+       "required_level": 14,
        "price": 0,
        "description": "Bâton imprimé de magie noire des abysses"
     },
@@ -839,6 +1602,7 @@ ITEMS = {
        "attack_bonus": 20,
        "class": "Guerrier",
        "rarity": "legendaire",
+       "required_level": 20,
        "price": 0,
        "description": "Épée forgée dans les flammes d'un dragon"
     },
@@ -847,6 +1611,7 @@ ITEMS = {
        "attack_bonus": 18,
        "class": "Archer",
        "rarity": "epique",
+       "required_level": 13,
        "price": 0,
        "description": "Arc maudit qui tire des flèches spectrales"
     },
@@ -855,6 +1620,7 @@ ITEMS = {
        "defense_bonus": 12,
        "health_bonus": 30,
        "rarity": "epique",
+       "required_level": 13,
        "price": 0,
        "description": "Armure portée par les gardiens des donjons"
     },
@@ -863,6 +1629,7 @@ ITEMS = {
        "health_bonus": 50,
        "defense_bonus": 5,
        "rarity": "legendaire",
+       "required_level": 20,
        "price": 0,
        "description": "Amulette qui confère une partie de l'immortalité"
     }
@@ -1040,7 +1807,7 @@ LOCATIONS = {
         "npcs": [],
         "exits": {
             "ouest": "valley",
-            "south": "underworld"
+            "sud": "underworld"
         },
         "x": 80,
         "y": 15
@@ -1210,6 +1977,158 @@ ENEMIES = {
         "level": 15,
         "exp_reward": 450,
         "gold_reward": 100
+    },
+    "Loup Blanc": {
+        "health": 120,
+        "attack": 25,
+        "defense": 8,
+        "level": 8,
+        "exp_reward": 180,
+        "gold_reward": 60
+    },
+    "Géant des Glaces": {
+        "health": 250,
+        "attack": 35,
+        "defense": 18,
+        "level": 12,
+        "exp_reward": 350,
+        "gold_reward": 150
+    },
+    "Dragon Blanc": {
+        "health": 400,
+        "attack": 50,
+        "defense": 20,
+        "level": 25,
+        "exp_reward": 800,
+        "gold_reward": 350
+    },
+    "Chevalier des Cieux": {
+        "health": 200,
+        "attack": 30,
+        "defense": 15,
+        "level": 14,
+        "exp_reward": 400,
+        "gold_reward": 120
+    },
+    "Élémental d'Air": {
+        "health": 180,
+        "attack": 28,
+        "defense": 10,
+        "level": 13,
+        "exp_reward": 350,
+        "gold_reward": 100
+    },
+    "Phénix": {
+        "health": 300,
+        "attack": 40,
+        "defense": 12,
+        "level": 20,
+        "exp_reward": 600,
+        "gold_reward": 250
+    },
+    "Spectre": {
+        "health": 150,
+        "attack": 25,
+        "defense": 5,
+        "level": 10,
+        "exp_reward": 250,
+        "gold_reward": 80
+    },
+    "Golem de Cristal": {
+        "health": 280,
+        "attack": 30,
+        "defense": 22,
+        "level": 15,
+        "exp_reward": 400,
+        "gold_reward": 180
+    },
+    "Squelette Guerrier": {
+        "health": 100,
+        "attack": 20,
+        "defense": 8,
+        "level": 7,
+        "exp_reward": 150,
+        "gold_reward": 50
+    },
+    "Zombie": {
+        "health": 130,
+        "attack": 18,
+        "defense": 3,
+        "level": 6,
+        "exp_reward": 120,
+        "gold_reward": 40
+    },
+    "Liche": {
+        "health": 350,
+        "attack": 45,
+        "defense": 15,
+        "level": 22,
+        "exp_reward": 700,
+        "gold_reward": 300
+    },
+    "Golem de Lave": {
+        "health": 350,
+        "attack": 38,
+        "defense": 25,
+        "level": 20,
+        "exp_reward": 600,
+        "gold_reward": 200
+    },
+    "Dragon de Feu": {
+        "health": 500,
+        "attack": 55,
+        "defense": 22,
+        "level": 30,
+        "exp_reward": 1000,
+        "gold_reward": 500
+    },
+    "Chevalier Noir": {
+        "health": 280,
+        "attack": 40,
+        "defense": 20,
+        "level": 18,
+        "exp_reward": 550,
+        "gold_reward": 200
+    },
+    "Garde du Château": {
+        "health": 160,
+        "attack": 25,
+        "defense": 12,
+        "level": 10,
+        "exp_reward": 200,
+        "gold_reward": 70
+    },
+    "Assassin": {
+        "health": 120,
+        "attack": 35,
+        "defense": 5,
+        "level": 12,
+        "exp_reward": 300,
+        "gold_reward": 100
+    },
+    "Roi des Ombres": {
+        "health": 450,
+        "attack": 48,
+        "defense": 20,
+        "level": 28,
+        "exp_reward": 900,
+        "gold_reward": 400
+    },
+    "Mage Noir": {
+        "health": 200,
+        "attack": 35,
+        "defense": 8,
+        "level": 15,
+        "exp_reward": 400,
+        "gold_reward": 150
+    },
+    "Golem Volant": {
+        "health": 220,
+        "attack": 28,
+        "defense": 15,
+        "level": 13,
+        "exp_reward": 350,
+        "gold_reward": 120
     }
 }
 
@@ -1308,7 +2227,7 @@ ZONES = {
         "description": "Zone de base - Forêts, villages et donjons classiques",
         "unlocked_by_default": True,
         "required_level": 1,
-        "enemies": ["Gobelin", "Loup", "Goblin Guerrier", "Chauve-souris", "Nymphe Enragee"],
+        "enemies": ["Goblin", "Loup", "Goblin Guerrier", "Chauve-souris", "Nymphe Enragee"],
         "loot_table": {
             "commun": 0.55,
             "rare": 0.30,
@@ -1452,3 +2371,167 @@ ZONE_2_ITEMS = {
         "description": "Amulette qui confère une partie de l'immortalité"
     }
 }
+
+# ==================== SYSTÈME DE RUNES ====================
+
+# Définition des runes
+RUNES = {
+    "Rune de Feu": {
+        "icon": "🔥",
+        "element": "feu",
+        "description": "Imprégnée de flammes éternelles"
+    },
+    "Rune de Glace": {
+        "icon": "❄️",
+        "element": "glace",
+        "description": "Gèle l'air autour d'elle"
+    },
+    "Rune de Foudre": {
+        "icon": "⚡",
+        "element": "foudre",
+        "description": "Crépite d'énergie électrique"
+    },
+    "Rune de Nature": {
+        "icon": "🌿",
+        "element": "nature",
+        "description": "Pulse de vie végétale"
+    },
+    "Rune d'Ombre": {
+        "icon": "💀",
+        "element": "ombre",
+        "description": "Absorbe la lumière ambiante"
+    },
+    "Rune de Lumière": {
+        "icon": "✨",
+        "element": "lumiere",
+        "description": "Rayonne d'une clarté divine"
+    },
+    "Rune du Chaos": {
+        "icon": "🌀",
+        "element": "chaos",
+        "description": "Tourbillonne d'énergie instable"
+    }
+}
+
+# Raretés des runes (affecte la puissance du buff)
+RUNE_RARITIES = {
+    "mineure": {"icon": "◇", "multiplier": 1.0, "drop_weight": 60},
+    "majeure": {"icon": "◆", "multiplier": 1.5, "drop_weight": 30},
+    "ancienne": {"icon": "◈", "multiplier": 2.0, "drop_weight": 10}
+}
+
+# Recettes de craft de runes (combiner 2 runes)
+RUNE_RECIPES = {
+    "Bouclier de Flammes": {
+        "runes": ["Rune de Feu", "Rune de Lumière"],
+        "icon": "🔥🛡️",
+        "description": "Enveloppe le porteur de flammes protectrices",
+        "effect": "defense_boost",
+        "value": 15,
+        "duration": 4,
+        "combat_text": "Un bouclier de flammes vous entoure !"
+    },
+    "Explosion Glacée": {
+        "runes": ["Rune de Glace", "Rune de Foudre"],
+        "icon": "❄️⚡",
+        "description": "Gèle puis électrocute l'ennemi",
+        "effect": "bonus_damage_next",
+        "value": 40,
+        "duration": 1,
+        "combat_text": "Une explosion glacée frappe votre ennemi !"
+    },
+    "Régénération Sauvage": {
+        "runes": ["Rune de Nature", "Rune de Lumière"],
+        "icon": "🌿✨",
+        "description": "Restaure la santé à chaque tour",
+        "effect": "regen",
+        "value": 25,
+        "duration": 5,
+        "combat_text": "La nature vous soigne à chaque instant !"
+    },
+    "Frappe de l'Ombre": {
+        "runes": ["Rune d'Ombre", "Rune de Feu"],
+        "icon": "💀🔥",
+        "description": "Attaque critique garantie au prochain coup",
+        "effect": "guaranteed_crit",
+        "value": 2.5,
+        "duration": 1,
+        "combat_text": "Les ombres guident votre lame pour un coup dévastateur !"
+    },
+    "Courroux Céleste": {
+        "runes": ["Rune de Lumière", "Rune de Foudre"],
+        "icon": "✨⚡",
+        "description": "Augmente massivement l'attaque",
+        "effect": "attack_boost",
+        "value": 20,
+        "duration": 4,
+        "combat_text": "La fureur divine augmente votre puissance !"
+    },
+    "Vortex du Chaos": {
+        "runes": ["Rune du Chaos", "Rune d'Ombre"],
+        "icon": "🌀💀",
+        "description": "Chaque attaque a une chance de frapper 3 fois",
+        "effect": "multi_hit",
+        "value": 3,
+        "duration": 3,
+        "combat_text": "Le chaos démultiplie vos frappes !"
+    },
+    "Armure de Givre": {
+        "runes": ["Rune de Glace", "Rune de Nature"],
+        "icon": "❄️🌿",
+        "description": "Armure de glace qui ralentit l'ennemi",
+        "effect": "defense_boost",
+        "value": 20,
+        "duration": 5,
+        "combat_text": "Une armure de givre vivant vous protège !"
+    },
+    "Tempête Électrique": {
+        "runes": ["Rune de Foudre", "Rune de Feu"],
+        "icon": "⚡🔥",
+        "description": "Inflige des dégâts bonus massifs",
+        "effect": "attack_boost",
+        "value": 25,
+        "duration": 3,
+        "combat_text": "Une tempête de feu et de foudre vous habite !"
+    },
+    "Éclipse": {
+        "runes": ["Rune d'Ombre", "Rune de Lumière"],
+        "icon": "💀✨",
+        "description": "Équilibre parfait, tous les bonus augmentés",
+        "effect": "all_boost",
+        "value": 12,
+        "duration": 4,
+        "combat_text": "L'éclipse confère un pouvoir équilibré !"
+    },
+    "Fureur Primale": {
+        "runes": ["Rune de Nature", "Rune du Chaos"],
+        "icon": "🌿🌀",
+        "description": "Berserk: +30 ATK mais -10 DEF",
+        "effect": "berserk",
+        "value": 30,
+        "penalty": 10,
+        "duration": 4,
+        "combat_text": "Une fureur primitive s'empare de vous !"
+    },
+    "Nova Glaciale": {
+        "runes": ["Rune de Glace", "Rune d'Ombre"],
+        "icon": "❄️💀",
+        "description": "Réduit l'attaque de l'ennemi",
+        "effect": "enemy_weaken",
+        "value": 15,
+        "duration": 4,
+        "combat_text": "Le froid et les ténèbres affaiblissent votre ennemi !"
+    },
+    "Déchaînement Arcanique": {
+        "runes": ["Rune du Chaos", "Rune de Foudre"],
+        "icon": "🌀⚡",
+        "description": "Double les dégâts des compétences",
+        "effect": "skill_double",
+        "value": 2.0,
+        "duration": 3,
+        "combat_text": "L'énergie arcanique démultiplie vos sorts !"
+    }
+}
+
+# Chances de drop de runes par ennemi (ajoutées au loot normal)
+RUNE_DROP_CHANCE = 0.40  # 40% de chance de drop une rune par combat
