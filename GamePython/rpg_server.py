@@ -56,6 +56,12 @@ def get_game_session():
             if 'defense' in saved_stats:
                 game_sessions[game_id].player_stats['defense'] = saved_stats['defense']
             
+            # Charger les infos de zone
+            if 'current_zone' in saved_stats:
+                game_sessions[game_id].current_zone = saved_stats['current_zone']
+            if 'unlocked_zones' in saved_stats:
+                game_sessions[game_id].unlocked_zones = saved_stats['unlocked_zones']
+            
             # CORRECTION : Charger l'inventaire et l'équipement avec les bons types
             saved_inventory = saved_stats.get('inventory', {})
             if isinstance(saved_inventory, dict):
@@ -69,6 +75,24 @@ def get_game_session():
             if isinstance(saved_equipped, dict):
                 for slot in game_sessions[game_id].equipped:
                     game_sessions[game_id].equipped[slot] = saved_equipped.get(slot, None)
+            
+            # Charger la progression des quêtes
+            saved_quest_progress = saved_stats.get('quest_progress', {})
+            if isinstance(saved_quest_progress, dict):
+                game_sessions[game_id].quest_progress = saved_quest_progress.copy()
+            
+            saved_completed_quests = saved_stats.get('completed_quests', [])
+            if isinstance(saved_completed_quests, list):
+                game_sessions[game_id].completed_quests = saved_completed_quests.copy()
+            
+            # Charger les compétences progressives
+            saved_skills_learned = saved_stats.get('skills_learned', {})
+            if isinstance(saved_skills_learned, dict):
+                game_sessions[game_id].skills_learned = {k: v.copy() if isinstance(v, dict) else v for k, v in saved_skills_learned.items()}
+            
+            saved_unlocked_skills = saved_stats.get('unlocked_skills', {})
+            if isinstance(saved_unlocked_skills, dict):
+                game_sessions[game_id].unlocked_skills = saved_unlocked_skills.copy()
     
     return game_sessions[game_id]
 
@@ -147,6 +171,16 @@ def action():
         game.close_shop()
     elif action_type == 'fight':
         message = game.start_fight(action_value)
+        game.close_shop()
+    elif action_type == 'explore':
+        message = game.explore_location()
+        game.close_shop()
+    elif action_type == 'change_zone':
+        message = game.change_zone(action_value)
+        game.close_shop()
+    elif action_type == 'explore_zone':
+        # explore_zone gère à la fois les valeurs numériques (zone_id) et "explore"
+        message = game.explore_zone(action_value)
         game.close_shop()
     elif action_type == 'talk':
         message = game.talk_to_npc(action_value)
@@ -231,7 +265,11 @@ def action():
             'mana': game.player_stats['mana'],
             'max_mana': game.player_stats['max_mana'],
             'attack': game.player_stats['attack'],
-            'defense': game.player_stats['defense']
+            'defense': game.player_stats['defense'],
+            'quest_progress': game.quest_progress.copy(),
+            'completed_quests': game.completed_quests.copy(),
+            'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
+            'unlocked_skills': game.unlocked_skills.copy()
         }
         session.modified = True
         # Supprimer la session de jeu actuelle pour forcer un rechargement
@@ -266,7 +304,13 @@ def restart():
         'mana': game.player_stats['mana'],
         'max_mana': game.player_stats['max_mana'],
         'attack': game.player_stats['attack'],
-        'defense': game.player_stats['defense']
+        'defense': game.player_stats['defense'],
+        'current_zone': game.current_zone,
+        'unlocked_zones': game.unlocked_zones.copy(),
+        'quest_progress': game.quest_progress.copy(),
+        'completed_quests': game.completed_quests.copy(),
+        'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
+        'unlocked_skills': game.unlocked_skills.copy()
     }
     
     game_id = session.get('game_id')

@@ -9,6 +9,9 @@
         body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #00ff00; min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
         .game-container { background: #000; border: 3px solid #00ff00; border-radius: 10px; padding: 30px; max-width: 900px; width: 90%; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); overflow-y: auto; max-height: 90vh; }
         .title { text-align: center; font-size: 2em; font-weight: bold; margin-bottom: 30px; text-shadow: 0 0 10px #00ff00; }
+        select.zone-select { background: #000; border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 1em; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; }
+        select.zone-select:focus { outline: none; border-color: #00ffff; box-shadow: 0 0 10px rgba(0, 255, 0, 0.3); }
+        select.zone-select option { background: #000; color: #00ff00; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
         .modal { background: #000; border: 3px solid #aa00ff; border-radius: 10px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 0 30px rgba(170, 0, 255, 0.5); }
         .modal-title { color: #aa00ff; font-size: 1.8em; font-weight: bold; margin-bottom: 25px; text-align: center; text-shadow: 0 0 10px #aa00ff; }
@@ -284,9 +287,9 @@
                                 <div class="combatant-header">
                                     {% if game_state.is_boss_fight %}
                                         <span style="color: #ffaa00; font-size: 1.1em;">⚠️ BOSS LÉGENDAIRE! ⚠️</span><br>
-                                        <span style="color: #ff6600; font-weight: bold;">{{ game_state.current_enemy | upper }} - NIV {{ game_state.enemy_level }}</span>
+                                        <span style="color: #ff6600; font-weight: bold;">{{ game_state.current_enemy.name if game_state.current_enemy else "Inconnu" | upper }} - NIV {{ game_state.enemy_level }}</span>
                                     {% else %}
-                                        👹 {{ game_state.current_enemy | upper }} - NIV {{ game_state.enemy_level }}
+                                        👹 {{ game_state.current_enemy.name if game_state.current_enemy else "Inconnu" | upper }} - NIV {{ game_state.enemy_level }}
                                     {% endif %}
                                 </div>
                                 {% if game_state.is_boss_fight %}
@@ -299,10 +302,6 @@
                                         <div class="combat-health-fill" style="width: {% if game_state.enemy_max_health > 0 %}{{ (game_state.enemy_health / game_state.enemy_max_health) * 100 }}{% else %}0{% endif %}%; background: {% if game_state.is_boss_fight %}linear-gradient(90deg, #ff6600, #ffaa00){% endif %};"></div>
                                     </div>
                                     <div class="combat-health-text">{{ game_state.enemy_health }} / {{ game_state.enemy_max_health }} PV</div>
-                                </div>
-                                <div style="margin-top: 8px; font-size: 12px; color: #aaa;">
-                                    <div>⚡ Attaque: <span style="color: #ff6666;">{{ game_state.enemy_attack }}</span></div>
-                                    <div>🛡️ Défense: <span style="color: #ff6666;">{{ game_state.enemy_defense }}</span></div>
                                 </div>
                             </div>
                         </div>
@@ -358,15 +357,39 @@
                         <button type="submit" class="action-btn">Fuir le combat</button>
                     </form>
                 {% else %}
+                    {# Séparer les actions d'exploration des autres #}
+                    {% set ns = namespace(explore_actions=[], other_actions=[]) %}
                     {% for action in game_state.available_actions %}
                         {% if action.type != 'move' %}
-                            <form method="post" action="/action">
-                                <input type="hidden" name="action_type" value="{{ action.type }}">
-                                <input type="hidden" name="action_value" value="{{ action.value }}">
-                                <button type="submit" class="action-btn {% if action.type == 'fight' %}fight{% elif action.type == 'talk' %}talk{% endif %}">{{ action.text }}</button>
-                            </form>
+                            {% if action.type in ['explore', 'explore_zone'] %}
+                                {% set ns.explore_actions = ns.explore_actions + [action] %}
+                            {% else %}
+                                {% set ns.other_actions = ns.other_actions + [action] %}
+                            {% endif %}
                         {% endif %}
                     {% endfor %}
+                    
+                    {# Afficher les autres actions normalement #}
+                    {% for action in ns.other_actions %}
+                        <form method="post" action="/action">
+                            <input type="hidden" name="action_type" value="{{ action.type }}">
+                            <input type="hidden" name="action_value" value="{{ action.value }}">
+                            <button type="submit" class="action-btn {% if action.type == 'fight' %}fight{% elif action.type == 'talk' %}talk{% endif %}">{{ action.text }}</button>
+                        </form>
+                    {% endfor %}
+                    
+                    {# Afficher le menu déroulant pour l'exploration si des zones sont disponibles #}
+                    {% if ns.explore_actions %}
+                        <form method="post" action="/action" style="display: flex; gap: 10px; align-items: center;">
+                            <select name="action_value" class="zone-select" style="padding: 10px; background: #000; border: 2px solid #00ff00; color: #00ff00; font-family: 'Courier New', monospace; font-size: 1em; border-radius: 5px; flex: 1; cursor: pointer;">
+                                {% for action in ns.explore_actions %}
+                                    <option value="{{ action.value }}" {% if action.type == 'explore' %}selected{% endif %}>{{ action.text }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="hidden" name="action_type" value="explore_zone">
+                            <button type="submit" class="action-btn" style="white-space: nowrap;">Explorer</button>
+                        </form>
+                    {% endif %}
                 {% endif %}
                 <form method="post" action="/action" style="margin-top: 15px;">
                     <input type="hidden" name="action_type" value="toggle_options">

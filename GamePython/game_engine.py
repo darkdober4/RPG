@@ -2,7 +2,8 @@
 from game_config import (
     GAME_CONFIG, LOCATIONS, ENEMIES, NPCS_DIALOGUE, ITEMS, SHOPS,
     DIFFICULTY_SETTINGS, LOOT_BY_RARITY, CLASSES, DAILY_QUESTS,
-    SKILLS, BOSSES, BOSS_EQUIPMENT_CONFIG, PROGRESSIVE_SKILLS
+    SKILLS, BOSSES, BOSS_EQUIPMENT_CONFIG, PROGRESSIVE_SKILLS,
+    ZONES, ZONE_2_ENEMIES, ZONE_2_LOOT, ZONE_2_ITEMS
 )
 import random
 from datetime import datetime
@@ -56,6 +57,10 @@ class GameEngine:
         # Initialiser toutes les quêtes avec une progression de 0
         for quest_id in DAILY_QUESTS:
             self.quest_progress[quest_id] = 0
+        
+        # Système de zones
+        self.current_zone = 1
+        self.unlocked_zones = [1]  # Zone 1 est toujours débloquée par défaut
         self.temporary_buffs = {}
         self.enemy_health = 0
         self.enemy_max_health = 0
@@ -77,6 +82,11 @@ class GameEngine:
             for skill_name, skill_data in SKILLS[class_name].items():
                 if skill_data.get("unlocked_at", 1) <= self.player_stats["level"]:
                     self.skills_learned[class_name][skill_name] = True
+        
+        # Débloquer les compétences progressives selon le niveau
+        self.unlock_progressive_skills()
+        # Vérifier les zones à débloquer
+        self.check_unlocked_zones()
         return True
     
     def get_location_description(self):
@@ -119,8 +129,27 @@ class GameEngine:
                         "text": "Combattre un ennemi",
                         "value": ""
                     })
+                
+                # Ajouter des actions pour explorer chaque zone débloquée
+                for zone_id in self.unlocked_zones:
+                    zone_info = self.get_zone_info(zone_id)
+                    if zone_info:
+                        zone_name = zone_info['name']
+                        # Si c'est la zone actuelle, utiliser "Explorer" sinon "Explorer [Nom]"
+                        if zone_id == self.current_zone:
+                            actions.append({
+                                "type": "explore",
+                                "text": f"Explorer ({zone_name})",
+                                "value": "explore"
+                            })
+                        else:
+                            actions.append({
+                                "type": "explore_zone",
+                                "text": f"Explorer {zone_name}",
+                                "value": str(zone_id)
+                            })
+                
                 actions.extend([
-                    {"type": "explore", "text": "Explorer", "value": "explore"},
                     {"type": "check_inventory", "text": "Inventaire", "value": "check_inventory"},
                     {"type": "check_stats", "text": "Stats", "value": "check_stats"},
                     {"type": "rest", "text": "Se reposer", "value": "rest"}
@@ -146,25 +175,59 @@ class GameEngine:
             return "Localisation inconnue !"
         location_data = LOCATIONS[self.current_location]
         exploration_result = f"Vous explorez {location_data.get('name', 'la zone')}...\n"
-        if random.random() < 0.3 and location_data.get("loot"):
-            item = random.choice(location_data["loot"])
-            exploration_result += f"Vous avez trouvé : {item}"
-            if item in self.inventory:
-                self.inventory[item] += 1
+        
+        # 30% de chance de trouver du loot (comme avant)
+        if random.random() < 0.3:
+            # Utiliser get_loot() pour avoir un loot basé sur la zone actuelle
+            loot = self.get_loot(self.player_stats.get("level", 1))
+            if loot:
+                for item, qty in loot.items():
+                    if item in self.inventory:
+                        self.inventory[item] += qty
+                    else:
+                        self.inventory[item] = qty
+                    exploration_result += f"Vous avez trouvé : {item} (x{qty})\n"
             else:
-                self.inventory[item] = 1
+                exploration_result += "Vous n'avez rien trouvé d'intéressant.\n"
         else:
-            exploration_result += "Vous n'avez rien trouvé d'intéressant."
+            exploration_result += "Vous n'avez rien trouvé d'intéressant.\n"
+        
+        # 25% de chance de déclencher un combat (comme avant)
         if random.random() < 0.25 and location_data.get("enemies"):
             exploration_result += "\nUn ennemi vous barre le chemin !"
             self.start_fight()
         return exploration_result
+    
+    def explore_zone(self, zone_id):
+        """Change de zone et explore directement, ou explore la zone actuelle"""
+        # Si zone_id est "explore", explorer la zone actuelle
+        if zone_id == "explore":
+            return self.explore_location()
+        
+        # Sinon, changer de zone et explorer
+        try:
+            result = self.set_zone(int(zone_id))
+            if "non disponible" in result or "invalide" in result:
+                return result
+            # Explorer la nouvelle zone
+            return self.explore_location()
+        except (ValueError, TypeError):
+            # Si zone_id n'est pas convertible en int, explorer la zone actuelle
+            return self.explore_location()
     
     def start_fight(self, enemy=None):
         if self.current_location not in LOCATIONS:
             return "Pas d'ennemi ici !"
         location_data = LOCATIONS[self.current_location]
         available_enemies = location_data.get("enemies", [])
+        
+        # Ajouter les ennemis de la zone actuelle
+        zone_info = self.get_zone_info()
+        if self.current_zone == 2:  # Zone 2
+            # Ajouter les ennemis spécifiques à la Zone 2
+            zone2_enemies = list(ZONE_2_ENEMIES.keys())
+            available_enemies = list(set(available_enemies + zone2_enemies))
+        
         if not available_enemies and enemy is None:
             return "Pas d'ennemi disponible !"
         
@@ -232,11 +295,11 @@ class GameEngine:
             enemy_name = self.current_enemy["name"]
             
             self.player_stats["gold"] += gold_gain
-            self.add_exp(exp_gain)
+            # Mettre à jour la progression des quêtes SEPAREMENT pour éviter la double comptabilisation
+            self.update_quest_progress(enemy_name=enemy_name)  # Quêtes de type "tuer X ennemis"
+            self.update_quest_progress(gold_gain=gold_gain)     # Quêtes de type "gold"
+            self.add_exp(exp_gain)  # add_exp appellera update_quest_progress(exp_gain) pour les quêtes d'XP
             self.total_enemies_defeated += 1
-            
-            # Mettre à jour la progression des quêtes
-            self.update_quest_progress(enemy_name=enemy_name, exp_gain=exp_gain, gold_gain=gold_gain)
             
             if self.current_enemy.get("is_boss"):
                 self.boss_defeated[self.current_enemy["name"]] = True
@@ -299,6 +362,9 @@ class GameEngine:
             self.player_stats["level"] += 1
             self.player_stats["exp_for_next_level"] = int(self.player_stats["exp_for_next_level"] * 1.1)
             
+            # Vérifier les zones à débloquer
+            self.check_unlocked_zones()
+            
             if self.player_class in CLASSES:
                 # Bonus de mana pour TOUTES les classes : 5 + 0.1% du mana max par niveau
                 current_max_mana = self.player_stats.get("max_mana", 50)
@@ -331,19 +397,47 @@ class GameEngine:
         if not LOOT_BY_RARITY:
             return loot
         
-        possible_rarities = ["commun"]
-        if enemy_level >= 5:
-            possible_rarities.append("rare")
-        if enemy_level >= 10:
-            possible_rarities.append("epique")
-        if enemy_level >= 20:
-            possible_rarities.append("legendaire")
+        # Utiliser le loot table de la zone actuelle
+        zone_info = self.get_zone_info()
+        zone_loot_table = zone_info.get('loot_table', LOOT_BY_RARITY) if zone_info else LOOT_BY_RARITY
         
-        for _ in range(random.randint(1, 3)):
-            rarity = random.choice(possible_rarities)
-            if rarity in LOOT_BY_RARITY:
-                item = random.choice(LOOT_BY_RARITY[rarity])
-                loot[item] = loot.get(item, 0) + 1
+        # Pour la Zone 2, améliorer les probabilités
+        if self.current_zone == 2:
+            possible_rarities = ["rare", "epique", "legendaire"]
+            weights = [0.35, 0.35, 0.30]  # Meilleure chance pour les rares
+        else:
+            # Zone 1 : loot standard
+            possible_rarities = ["commun"]
+            if enemy_level >= 5:
+                possible_rarities.append("rare")
+            if enemy_level >= 10:
+                possible_rarities.append("epique")
+            if enemy_level >= 20:
+                possible_rarities.append("legendaire")
+            weights = None
+        
+        # Sélectionner les raretés
+        if weights:
+            rarity = random.choices(possible_rarities, weights=weights, k=1)[0]
+            # Ajouter 1-3 items de cette rareté
+            for _ in range(random.randint(1, 3)):
+                if rarity in LOOT_BY_RARITY:
+                    item = random.choice(LOOT_BY_RARITY[rarity])
+                    loot[item] = loot.get(item, 0) + 1
+                # Pour la Zone 2, ajouter une chance de loot spécial
+                if self.current_zone == 2 and rarity in ZONE_2_LOOT:
+                    zone2_item = random.choice(ZONE_2_LOOT[rarity])
+                    loot[zone2_item] = loot.get(zone2_item, 0) + 1
+        else:
+            for _ in range(random.randint(1, 3)):
+                rarity = random.choice(possible_rarities)
+                if rarity in LOOT_BY_RARITY:
+                    item = random.choice(LOOT_BY_RARITY[rarity])
+                    loot[item] = loot.get(item, 0) + 1
+                # Pour la Zone 2, ajouter une chance de loot spécial
+                if self.current_zone == 2 and rarity in ZONE_2_LOOT:
+                    zone2_item = random.choice(ZONE_2_LOOT[rarity])
+                    loot[zone2_item] = loot.get(zone2_item, 0) + 1
         
         return loot
     
@@ -528,12 +622,25 @@ class GameEngine:
         available_skills = {}
         if self.player_class not in SKILLS:
             return available_skills
+        
+        # Ajouter les compétences de base (SKILLS)
         class_skills = SKILLS[self.player_class]
         current_level = self.player_stats["level"]
         for skill_name, skill_data in class_skills.items():
             unlock_level = skill_data.get("unlocked_at", 1)
             if current_level >= unlock_level:
                 available_skills[skill_name] = skill_data
+        
+        # Ajouter les compétences progressives déjà apprises
+        if self.player_class in self.skills_learned:
+            for skill_name in self.skills_learned[self.player_class]:
+                # Trouver les données de la compétence dans PROGRESSIVE_SKILLS
+                if self.player_class in PROGRESSIVE_SKILLS:
+                    for skill in PROGRESSIVE_SKILLS[self.player_class]:
+                        if skill.get("name") == skill_name:
+                            available_skills[skill_name] = skill
+                            break
+        
         return available_skills
     
     def get_upcoming_skills(self):
@@ -565,7 +672,11 @@ class GameEngine:
             skill_name = skill_data.get("name", "")
             unlock_level = skill_data.get("level", 1)
             if current_level >= unlock_level and skill_name:
-                self.skills_learned[self.player_class][skill_name] = True
+                # Ne pas dupliquer si déjà débloquée
+                if skill_name not in self.skills_learned[self.player_class]:
+                    self.skills_learned[self.player_class][skill_name] = True
+                    # Synchroniser avec unlocked_skills pour compatibilité
+                    self.unlocked_skills[skill_name] = skill_data
     
     def get_navigation_map(self):
         if self.current_location not in LOCATIONS:
@@ -690,12 +801,28 @@ class GameEngine:
         return f"<p><strong>{npc_name}:</strong> {dialogue_text}</p>"
     
     def use_skill(self, skill_name):
-        if not self.player_class or self.player_class not in SKILLS:
+        if not self.player_class:
             return "Vous n'avez pas de classe!"
-        class_skills = SKILLS[self.player_class]
-        if skill_name not in class_skills:
-            return f"Compétence {skill_name} non trouvée!"
-        skill_data = class_skills[skill_name]
+        
+        # Vérifier d'abord dans les compétences de base (SKILLS)
+        class_skills = SKILLS.get(self.player_class, {})
+        if skill_name in class_skills:
+            skill_data = class_skills[skill_name]
+        # Sinon vérifier dans les compétences progressives déjà apprises
+        elif self.player_class in self.skills_learned and skill_name in self.skills_learned[self.player_class]:
+            # Trouver la définition de la compétence dans PROGRESSIVE_SKILLS
+            progressive_skills = PROGRESSIVE_SKILLS.get(self.player_class, [])
+            skill_data = None
+            for skill in progressive_skills:
+                if skill.get("name") == skill_name:
+                    skill_data = skill
+                    break
+            if skill_data is None:
+                return f"Compétence {skill_name} non trouvée!"
+        else:
+            return f"Compétence {skill_name} non trouvée ou non débloquée!"
+        
+        # Extraire les données de la compétence
         mana_cost = skill_data.get("mana_cost", 0)
         if self.player_stats["mana"] < mana_cost:
             return f"Pas assez de mana! (Besoin: {mana_cost}, Mana: {self.player_stats['mana']})"
@@ -751,11 +878,11 @@ class GameEngine:
                 enemy_name = self.current_enemy["name"]
                 
                 self.player_stats["gold"] += gold_gain
-                self.add_exp(exp_gain)
+                # Mettre à jour la progression des quêtes SEPAREMENT pour éviter la double comptabilisation
+                self.update_quest_progress(enemy_name=enemy_name)  # Quêtes de type "tuer X ennemis"
+                self.update_quest_progress(gold_gain=gold_gain)     # Quêtes de type "gold"
+                self.add_exp(exp_gain)  # add_exp appellera update_quest_progress(exp_gain) pour les quêtes d'XP
                 self.total_enemies_defeated += 1
-                
-                # Mettre à jour la progression des quêtes
-                self.update_quest_progress(enemy_name=enemy_name, exp_gain=exp_gain, gold_gain=gold_gain)
                 
                 if self.current_enemy.get("is_boss"):
                     self.boss_defeated[self.current_enemy["name"]] = True
@@ -796,6 +923,45 @@ class GameEngine:
             del self.inventory[item_name]
         return True
     
+    def unlock_zone(self, zone_id):
+        """Débloque une zone"""
+        if zone_id not in self.unlocked_zones and zone_id in ZONES:
+            zone = ZONES[zone_id]
+            if self.player_stats['level'] >= zone.get('required_level', 999):
+                self.unlocked_zones.append(zone_id)
+                return f"Zone {zone_id} débloquée !"
+        return f"Impossible de débloquer la zone {zone_id}"
+
+    def check_unlocked_zones(self):
+        """Vérifie et débloque toutes les zones disponibles selon le niveau"""
+        for zone_id, zone_data in ZONES.items():
+            if zone_id not in self.unlocked_zones:
+                required_level = zone_data.get('required_level', 999)
+                if self.player_stats['level'] >= required_level:
+                    self.unlock_zone(zone_id)
+
+    def set_zone(self, zone_id):
+        """Change de zone"""
+        if zone_id in self.unlocked_zones and zone_id in ZONES:
+            self.current_zone = zone_id
+            return f"Zone changée vers {ZONES[zone_id]['name']}"
+        return f"Zone {zone_id} non disponible"
+
+    def change_zone(self, zone_id):
+        """Change de zone avec vérifications"""
+        try:
+            zone_id = int(zone_id)
+        except:
+            return f"Zone invalide: {zone_id}"
+        return self.set_zone(zone_id)
+
+    def get_zone_info(self, zone_id=None):
+        """Retourne les infos d'une zone ou de la zone actuelle"""
+        zone_id = zone_id or self.current_zone
+        if zone_id in ZONES:
+            return ZONES[zone_id]
+        return None
+
     def set_difficulty(self, difficulty):
         if difficulty not in DIFFICULTY_SETTINGS:
             return "Difficulté invalide!"
@@ -813,6 +979,12 @@ class GameEngine:
         """Met à jour la progression de toutes les quêtes actives"""
         if not DAILY_QUESTS:
             return
+        
+        # Protection contre les valeurs invalides
+        if exp_gain < 0:
+            exp_gain = 0
+        if gold_gain < 0:
+            gold_gain = 0
         
         for quest_id, quest_data in DAILY_QUESTS.items():
             # Skip already completed quests
@@ -890,10 +1062,11 @@ class GameEngine:
         
         exp_reward = quest_data.get("reward_exp", 0)
         gold_reward = quest_data.get("reward_gold", 0)
-        self.add_exp(exp_reward)
+        self.add_exp(exp_reward)  # add_exp met à jour les quêtes d'XP
         self.player_stats["gold"] += gold_reward
-        # Mettre à jour la progression des quêtes avec les récompenses
-        self.update_quest_progress(gold_gain=gold_reward)
+        # NOTE: On ne met PAS à jour les quêtes avec les récompenses pour éviter:
+        # 1. La récursion infinie (récompense or → quête or → nouvelle récompense → ...)
+        # 2. L'exploitation (compléter une quête → recevoir or → compléter quête or → recevoir plus or)
         if quest_data.get("reward_item"):
             reward_item = quest_data["reward_item"]
             self.inventory[reward_item] = self.inventory.get(reward_item, 0) + 1
