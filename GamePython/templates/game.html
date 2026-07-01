@@ -97,6 +97,21 @@
         .inventory-empty { color: #666; font-style: italic; }
         .equipped-section { background: #1a0a1a; border: 1px solid #aa00aa; padding: 10px; border-radius: 3px; margin-top: 10px; font-size: 0.9em; }
         .equipped-item { color: #ff00ff; margin: 5px 0; }
+        .score-section { background: linear-gradient(135deg, #1a1a0a 0%, #0d1a0a 100%); border: 2px solid #ffd700; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
+        .score-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .score-title { color: #ffd700; font-size: 1.3em; font-weight: bold; text-shadow: 0 0 10px #ffd700; }
+        .score-total { color: #ffd700; font-size: 1.8em; font-weight: bold; text-shadow: 0 0 15px #ffd700; }
+        .score-rank { background: rgba(255, 215, 0, 0.15); border: 1px solid #ffd700; border-radius: 5px; padding: 5px 15px; color: #ffd700; font-weight: bold; font-size: 1.1em; }
+        .score-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .score-detail-item { background: rgba(0, 0, 0, 0.4); border: 1px solid #333; border-radius: 4px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+        .score-detail-left { display: flex; align-items: center; gap: 8px; }
+        .score-detail-icon { font-size: 1.1em; }
+        .score-detail-name { color: #ccc; font-size: 0.85em; }
+        .score-detail-right { text-align: right; }
+        .score-detail-value { color: #aaa; font-size: 0.8em; }
+        .score-detail-points { color: #ffd700; font-weight: bold; font-size: 0.9em; }
+        .score-details-panel { display: none; margin-top: 15px; }
+        .score-details-panel.score-details-visible { display: block; }
         .victory { text-align: center; color: #ffff00; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 10px #ffff00; }
         .game-over { text-align: center; color: #ff0000; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 10px #ff0000; }
         .restart-btn { width: 100%; padding: 15px; background: #ffaa00; color: #000; border: 2px solid #ffff00; border-radius: 5px; font-family: 'Courier New', monospace; font-weight: bold; font-size: 1.1em; cursor: pointer; margin-top: 20px; }
@@ -370,6 +385,74 @@
             color: #888; text-align: center; font-size: 0.8em;
             margin-top: 15px; position: relative; z-index: 1;
         }
+
+        /* ===== LOOT BOOST TOOLTIP ===== */
+        .loot-boost-indicator {
+            position: relative; display: inline-flex; align-items: center; gap: 5px;
+            cursor: default; padding: 4px 10px; border-radius: 5px;
+            background: rgba(0, 200, 100, 0.1); border: 1px solid #00cc66;
+            color: #00ff88; font-size: 0.9em; font-weight: bold;
+            transition: all 0.2s;
+        }
+        .loot-boost-indicator:hover { background: rgba(0, 200, 100, 0.2); box-shadow: 0 0 10px rgba(0, 204, 102, 0.3); }
+        .loot-boost-tooltip {
+            visibility: hidden; opacity: 0; position: absolute; bottom: 130%; left: 50%;
+            transform: translateX(-50%); background: #1a1a2e; border: 2px solid #00cc66;
+            border-radius: 8px; padding: 12px 16px; min-width: 220px; z-index: 800;
+            box-shadow: 0 0 20px rgba(0, 204, 102, 0.3); transition: opacity 0.2s, visibility 0.2s;
+            font-size: 0.85em; color: #ccc; text-align: left; pointer-events: none;
+        }
+        .loot-boost-tooltip::after {
+            content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            border: 8px solid transparent; border-top-color: #00cc66;
+        }
+        .loot-boost-indicator:hover .loot-boost-tooltip { visibility: visible; opacity: 1; }
+        .tooltip-title { color: #00ff88; font-weight: bold; font-size: 1.1em; margin-bottom: 8px; }
+        .tooltip-stat { display: flex; justify-content: space-between; margin: 4px 0; }
+        .tooltip-label { color: #aaa; }
+        .tooltip-value { color: #ffff00; font-weight: bold; }
+
+        /* ===== CARD LORE TOOLTIP ===== */
+        .card-lore-tooltip {
+            visibility: hidden; opacity: 0; position: absolute; bottom: 105%; left: 50%;
+            transform: translateX(-50%); background: linear-gradient(135deg, #1a1520, #2a1a30);
+            border: 2px solid #ffd700; border-radius: 8px; padding: 14px 18px;
+            min-width: 280px; max-width: 350px; z-index: 900;
+            box-shadow: 0 0 25px rgba(255, 215, 0, 0.3), inset 0 0 30px rgba(255, 215, 0, 0.03);
+            transition: opacity 0.25s, visibility 0.25s; pointer-events: none;
+        }
+        .card-lore-tooltip::after {
+            content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            border: 8px solid transparent; border-top-color: #ffd700;
+        }
+        div:hover > .card-lore-tooltip { visibility: visible; opacity: 1; }
+
+        /* ===== SKILL TOOLTIP ===== */
+        .skill-btn-wrap { position: relative; }
+        .skill-tooltip {
+            visibility: hidden; opacity: 0; position: absolute; bottom: 110%; left: 50%;
+            transform: translateX(-50%); background: linear-gradient(135deg, #1a1030, #2a1555);
+            border: 2px solid #8866ff; border-radius: 10px; padding: 14px 18px;
+            min-width: 300px; max-width: 380px; z-index: 900;
+            box-shadow: 0 0 25px rgba(136, 102, 255, 0.4), inset 0 0 20px rgba(136, 102, 255, 0.05);
+            transition: opacity 0.2s, visibility 0.2s; pointer-events: none;
+            text-align: left;
+        }
+        .skill-tooltip::after {
+            content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            border: 8px solid transparent; border-top-color: #8866ff;
+        }
+        .skill-btn-wrap:hover .skill-tooltip { visibility: visible; opacity: 1; }
+        .skill-tt-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .skill-tt-icon { font-size: 1.5em; }
+        .skill-tt-name { color: #bb99ff; font-weight: bold; font-size: 1.1em; }
+        .skill-tt-desc { color: #ccc; font-size: 0.9em; line-height: 1.5; margin-bottom: 10px; font-style: italic; }
+        .skill-tt-stats { border-top: 1px solid rgba(136, 102, 255, 0.3); padding-top: 8px; }
+        .skill-tt-row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 0.85em; }
+        .skill-tt-label { color: #aaa; }
+        .skill-tt-value { color: #ffcc44; font-weight: bold; }
+        .skill-tt-mana-ok { color: #00ff88; }
+        .skill-tt-mana-low { color: #ff4444; }
 
         /* Classes pour les animations */
         .attacking { animation: playerAttack 0.5s ease-out; }
@@ -721,6 +804,21 @@
                 <div class="stat-item"><span class="stat-label">Arme:</span><span class="stat-value">{{ game_state.player_stats.weapon }}</span></div>
                 <div class="stat-item"><span class="stat-label">Armure:</span><span class="stat-value">{{ game_state.player_stats.armor }}</span></div>
                 <div class="stat-item"><span class="stat-label">Difficulte:</span><span class="stat-value">{{ game_state.difficulty | upper }}</span></div>
+                {% if game_state.loot_boost_info.count > 0 %}
+                <div class="stat-item">
+                    <span class="stat-label">Chance loot:</span>
+                    <span class="loot-boost-indicator">
+                        🍀 +{{ game_state.loot_boost_info.total_bonus }}%
+                        <div class="loot-boost-tooltip">
+                            <div class="tooltip-title">🍀 Bénédiction du Colporteur</div>
+                            <div class="tooltip-stat"><span class="tooltip-label">Boosts achetés</span><span class="tooltip-value">{{ game_state.loot_boost_info.count }}</span></div>
+                            <div class="tooltip-stat"><span class="tooltip-label">Bonus par boost</span><span class="tooltip-value">+{{ game_state.loot_boost_info.bonus_per_level }}%</span></div>
+                            <div class="tooltip-stat"><span class="tooltip-label">Bonus total</span><span class="tooltip-value" style="color: #00ff88;">+{{ game_state.loot_boost_info.total_bonus }}%</span></div>
+                            <div class="tooltip-stat" style="margin-top: 8px; border-top: 1px solid #333; padding-top: 6px;"><span class="tooltip-label">Prochain boost</span><span class="tooltip-value">{{ game_state.loot_boost_info.next_cost }} or</span></div>
+                        </div>
+                    </span>
+                </div>
+                {% endif %}
                 <div style="grid-column: 1 / -1;">
                     <div class="health-bar">
                         <div class="health-bar-fill" style="width: {% if game_state.player_stats.max_health > 0 %}{{ (game_state.player_stats.health / game_state.player_stats.max_health) * 100 }}{% else %}0{% endif %}%"></div>
@@ -732,6 +830,31 @@
                         <div class="exp-bar-fill" style="width: {% if game_state.player_stats.exp_for_next_level > 0 %}{{ (game_state.player_stats.exp / game_state.player_stats.exp_for_next_level) * 100 }}{% else %}0{% endif %}%"></div>
                     </div>
                     <div class="exp-text">{{ game_state.player_stats.exp }} / {{ game_state.player_stats.exp_for_next_level }} XP</div>
+                </div>
+            </div>
+
+            <!-- ===== SCORE ===== -->
+            <div class="score-section">
+                <div class="score-header" style="cursor: pointer;" onclick="document.getElementById('score-details-panel').classList.toggle('score-details-visible'); this.querySelector('.score-toggle').textContent = document.getElementById('score-details-panel').classList.contains('score-details-visible') ? '▲' : '▼';">
+                    <div class="score-title">🏅 SCORE</div>
+                    <div class="score-rank">{{ game_state.score.rank_icon }} {{ game_state.score.rank }}</div>
+                    <div class="score-total">{{ "{:,}".format(game_state.score.total).replace(",", " ") }} <span class="score-toggle" style="font-size: 0.5em; color: #aaa;">▼</span></div>
+                </div>
+                <div id="score-details-panel" class="score-details-panel">
+                    <div class="score-details">
+                        {% for category, data in game_state.score.details.items() %}
+                        <div class="score-detail-item">
+                            <div class="score-detail-left">
+                                <span class="score-detail-icon">{{ data.icon }}</span>
+                                <span class="score-detail-name">{{ category }}</span>
+                            </div>
+                            <div class="score-detail-right">
+                                <div class="score-detail-value">×{{ data.value }}</div>
+                                <div class="score-detail-points">+{{ "{:,}".format(data.points).replace(",", " ") }} pts</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
 
@@ -778,6 +901,13 @@
                                             <input type="hidden" name="action_type" value="visit_shop">
                                             <input type="hidden" name="action_value" value="{{ npc }}">
                                             <button type="submit" style="padding: 6px 12px; font-size: 0.85em; background: #ffaa00; color: #000; border: 2px solid #ffaa00; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace;">🛒 Boutique</button>
+                                        </form>
+                                        {% endif %}
+                                        {% if npc == 'Colporteur Mystique' %}
+                                        <form method="post" action="/action" style="display: inline;">
+                                            <input type="hidden" name="action_type" value="buy_loot_boost">
+                                            <input type="hidden" name="action_value" value="">
+                                            <button type="submit" style="padding: 6px 12px; font-size: 0.85em; background: #00cc66; color: #000; border: 2px solid #00ff88; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Courier New', monospace; transition: all 0.2s;" onmouseover="this.style.boxShadow='0 0 12px #00ff88';this.style.transform='scale(1.05)'" onmouseout="this.style.boxShadow='none';this.style.transform='scale(1)'">🍀 Boost Loot ({{ game_state.loot_boost_info.next_cost }} or)</button>
                                         </form>
                                         {% endif %}
                                     </div>
@@ -878,13 +1008,98 @@
                         <button type="submit" class="action-btn fight">Attaquer l'ennemi</button>
                     </form>
                     {% for skill_name, skill_data in game_state.player_skills.items() %}
-                        <form method="post" action="/action">
-                            <input type="hidden" name="action_type" value="use_skill">
-                            <input type="hidden" name="action_value" value="{{ skill_name }}">
-                            <button type="submit" class="action-btn" style="background: #6644ff; border-color: #6644ff; color: #fff;" title="Coûte {{ skill_data.mana_cost }} mana">
-                                {{ skill_data.icon }} {{ skill_name }} ({{ skill_data.mana_cost }} mana)
-                            </button>
-                        </form>
+                        <div class="skill-btn-wrap">
+                            <form method="post" action="/action">
+                                <input type="hidden" name="action_type" value="use_skill">
+                                <input type="hidden" name="action_value" value="{{ skill_name }}">
+                                <button type="submit" class="action-btn" style="background: #6644ff; border-color: #6644ff; color: #fff;">
+                                    {{ skill_data.icon }} {{ skill_name }} ({{ skill_data.mana_cost }} mana)
+                                </button>
+                            </form>
+                            <div class="skill-tooltip">
+                                <div class="skill-tt-header">
+                                    <span class="skill-tt-icon">{{ skill_data.icon }}</span>
+                                    <span class="skill-tt-name">{{ skill_name }}</span>
+                                </div>
+                                <div class="skill-tt-desc">{{ skill_data.description }}</div>
+                                <div class="skill-tt-stats">
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">💙 Coût mana</span>
+                                        <span class="{% if game_state.player_stats.mana >= skill_data.mana_cost %}skill-tt-mana-ok{% else %}skill-tt-mana-low{% endif %}">
+                                            {{ skill_data.mana_cost }} MP {% if game_state.player_stats.mana < skill_data.mana_cost %}⚠️{% endif %}
+                                        </span>
+                                    </div>
+                                    {% if skill_data.damage_multiplier is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">⚔️ Multiplicateur dégâts</span>
+                                        <span class="skill-tt-value">x{{ skill_data.damage_multiplier }}</span>
+                                    </div>
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">💥 Dégâts estimés</span>
+                                        <span class="skill-tt-value">~{{ (game_state.player_stats.attack * skill_data.damage_multiplier)|int }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.hits is defined and skill_data.hits > 1 %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">🎯 Nombre de coups</span>
+                                        <span class="skill-tt-value">{{ skill_data.hits }}</span>
+                                    </div>
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">💥 Dégâts totaux estimés</span>
+                                        <span class="skill-tt-value">~{{ (game_state.player_stats.attack * skill_data.damage_multiplier * skill_data.hits)|int }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.heal is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">💚 Soin</span>
+                                        <span class="skill-tt-value" style="color: #00ff88;">+{{ skill_data.heal }} HP</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.defense_boost is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">🛡️ Bonus défense</span>
+                                        <span class="skill-tt-value" style="color: #6696ff;">+{{ skill_data.defense_boost }} DEF</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.attack_multiplier is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">⚔️ Bonus attaque</span>
+                                        <span class="skill-tt-value">x{{ skill_data.attack_multiplier }} (+{{ ((game_state.player_stats.attack * (skill_data.attack_multiplier - 1))|int) }} ATK)</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.damage_reduction is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">🌀 Réduction dégâts</span>
+                                        <span class="skill-tt-value" style="color: #ff88cc;">{{ (skill_data.damage_reduction * 100)|int }}%</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.duration is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">⏱️ Durée</span>
+                                        <span class="skill-tt-value">{{ skill_data.duration }} tours</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.armor_penetration is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">🗡️ Pénétration armure</span>
+                                        <span class="skill-tt-value">{{ (skill_data.armor_penetration * 100)|int }}%</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.enemy_attack_reduction is defined %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">❄️ Réduit ATK ennemi</span>
+                                        <span class="skill-tt-value" style="color: #00ccff;">{{ (skill_data.enemy_attack_reduction * 100)|int }}%</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if skill_data.critical is defined and skill_data.critical %}
+                                    <div class="skill-tt-row">
+                                        <span class="skill-tt-label">🎯 Coup critique</span>
+                                        <span class="skill-tt-value" style="color: #ff4444;">Garanti</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
                     {% endfor %}
                     <form method="post" action="/action">
                         <input type="hidden" name="action_type" value="flee">
@@ -945,6 +1160,15 @@
                     <input type="hidden" name="action_type" value="toggle_runes">
                     <button type="submit" class="action-btn" style="background: #ff6644; border-color: #ff8866; color: #fff;">⚒️ RUNES {% if game_state.runes_data.inventory|length > 0 %}({{ game_state.runes_data.inventory|length }}){% endif %}</button>
                 </form>
+                <div style="margin-top: 15px; display: flex; gap: 8px;">
+                    <a href="/save" style="flex: 1; text-decoration: none;">
+                        <button type="button" class="action-btn" style="background: #2266cc; border-color: #4488ff; color: #fff; width: 100%;">💾 SAUVEGARDER</button>
+                    </a>
+                    <form method="post" action="/load" enctype="multipart/form-data" style="flex: 1; margin: 0;" id="load-save-form">
+                        <input type="file" name="save_file" accept=".json" id="save-file-picker" style="display: none;" onchange="this.form.submit()">
+                        <button type="button" class="action-btn" style="background: #228844; border-color: #44aa66; color: #fff; width: 100%;" onclick="document.getElementById('save-file-picker').click()">📂 CHARGER</button>
+                    </form>
+                </div>
             </div>
         </div>
     {% endif %}
@@ -991,9 +1215,31 @@
                             <div style="color: #888; font-style: italic; margin-top: 5px;">Aucune armure équipée</div>
                         {% endif %}
                     </div>
+                    <div style="background: rgba(200, 150, 255, 0.2); padding: 10px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #cc88ff;">
+                        <div style="color: #cc88ff; font-weight: bold;">💍 ACCESSOIRE</div>
+                        {% if game_state.equipped.accessory %}
+                            <div style="color: #fff; margin-top: 5px;">
+                                <strong>{{ game_state.equipped.accessory }}</strong>
+                                <div style="color: #aaa; font-size: 12px; margin-top: 3px;">
+                                    {% set acc = game_state.all_items[game_state.equipped.accessory] %}
+                                    {% if acc.attack_bonus is defined %}+{{ acc.attack_bonus }} ATK {% endif %}
+                                    {% if acc.defense_bonus is defined %}+{{ acc.defense_bonus }} DEF {% endif %}
+                                    {% if acc.health_bonus is defined %}+{{ acc.health_bonus }} HP {% endif %}
+                                    {% if acc.mana_bonus is defined %}+{{ acc.mana_bonus }} MP {% endif %}
+                                </div>
+                            </div>
+                            <form method="post" action="/action" style="margin-top: 8px;">
+                                <input type="hidden" name="action_type" value="unequip">
+                                <input type="hidden" name="action_value" value="accessory">
+                                <button type="submit" style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Dés-équiper</button>
+                            </form>
+                        {% else %}
+                            <div style="color: #888; font-style: italic; margin-top: 5px;">Aucun accessoire équipé</div>
+                        {% endif %}
+                    </div>
                 </div>
                 <div style="flex: 1.5; background: rgba(0, 170, 136, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #00aa88;">
-                    <h3 style="color: #00aa88; margin-top: 0;">📦 INVENTAIRE ({{ game_state.inventory|length }} / 20)</h3>
+                    <h3 style="color: #00aa88; margin-top: 0;">📦 INVENTAIRE</h3>
                     {% if game_state.inventory|length > 0 %}
                         <div style="max-height: 400px; overflow-y: auto;">
                             {% for item_name in game_state.inventory %}
@@ -1020,6 +1266,12 @@
                                                     <input type="hidden" name="action_value" value="{{ item_name }}|armor">
                                                     <button type="submit" style="background: #6496ff; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">🛡️ Équiper</button>
                                                 </form>
+                                            {% elif item.type == 'accessory' %}
+                                                <form method="post" action="/action" style="display: inline;">
+                                                    <input type="hidden" name="action_type" value="equip">
+                                                    <input type="hidden" name="action_value" value="{{ item_name }}|accessory">
+                                                    <button type="submit" style="background: #cc88ff; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">💍 Équiper</button>
+                                                </form>
                                             {% elif item.type == 'consumable' %}
                                                 <form method="post" action="/action" style="display: inline;">
                                                     <input type="hidden" name="action_type" value="use_item">
@@ -1042,6 +1294,40 @@
                     {% endif %}
                 </div>
             </div>
+
+            {% if game_state.cards_data|length > 0 or game_state.cards_used|length > 0 %}
+            <div style="margin-top: 15px; background: rgba(255, 215, 0, 0.08); padding: 15px; border-radius: 8px; border: 2px solid #ffd700;">
+                <h3 style="color: #ffd700; margin-top: 0;">🃏 CARTES PERMANENTES ({{ game_state.cards_data|length }})</h3>
+                {% if game_state.cards_data|length > 0 %}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px;">
+                        {% for card in game_state.cards_data %}
+                            <div style="background: rgba(255, 215, 0, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid {% if card.rarity == 'legendaire' %}#ff6600{% elif card.rarity == 'epique' %}#aa44ff{% else %}#4488ff{% endif %}; position: relative; cursor: default;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 1.2em;">{{ card.icon }}</span>
+                                    <span style="color: #fff; font-weight: bold;">{{ card.name }}</span>
+                                    <span style="color: #ffd700;">x{{ card.quantity }}</span>
+                                </div>
+                                <div style="color: #aaa; font-size: 0.8em; margin-top: 4px;">{{ card.description }}</div>
+                                <div class="card-lore-tooltip">
+                                    <div style="color: #ffd700; font-weight: bold; margin-bottom: 6px; font-size: 0.95em;">📜 {{ card.name }}</div>
+                                    <div style="color: #ccc; font-style: italic; line-height: 1.5; font-size: 0.9em;">{{ card.lore }}</div>
+                                </div>
+                                <form method="post" action="/action" style="margin-top: 6px;">
+                                    <input type="hidden" name="action_type" value="use_card">
+                                    <input type="hidden" name="action_value" value="{{ card.name }}">
+                                    <button type="submit" style="background: #ffd700; color: #000; border: none; padding: 4px 12px; border-radius: 3px; font-weight: bold; cursor: pointer; font-size: 0.85em; transition: all 0.2s;" onmouseover="this.style.boxShadow='0 0 10px #ffd700'" onmouseout="this.style.boxShadow='none'">✨ Utiliser</button>
+                                </form>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                {% if game_state.cards_used|length > 0 %}
+                    <div style="margin-top: 10px; color: #888; font-size: 0.8em;">
+                        Cartes utilisées : {{ game_state.cards_used|length }} (bonus permanents actifs)
+                    </div>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}

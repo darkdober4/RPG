@@ -6,12 +6,14 @@ Serveur Flask pour le RPG Text-Based GamePython
 Lance le jeu d'aventure en ligne
 """
 
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify, send_file
 from game_engine import GameEngine
 from game_config import ITEMS, CLASSES, SKILLS, DAILY_QUESTS, LOCATIONS, SHOPS
 import webbrowser
 import threading
 import os
+import json
+import io
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = 'gamepython_secret_rpg_key_2024'
@@ -100,7 +102,25 @@ def get_game_session():
             saved_runes = saved_stats.get('rune_inventory', {})
             if isinstance(saved_runes, dict):
                 game_sessions[game_id].rune_inventory = saved_runes.copy()
-    
+
+            game_sessions[game_id].loot_boost_count = saved_stats.get('loot_boost_count', 0)
+
+            saved_cards = saved_stats.get('card_inventory', {})
+            if isinstance(saved_cards, dict):
+                game_sessions[game_id].card_inventory = saved_cards.copy()
+            saved_cards_used = saved_stats.get('cards_used', [])
+            if isinstance(saved_cards_used, list):
+                game_sessions[game_id].cards_used = saved_cards_used.copy()
+
+            # Restaurer les stats supplémentaires
+            extra = session.get('extra_save', {})
+            if extra:
+                game_sessions[game_id].total_enemies_defeated = extra.get('total_enemies_defeated', 0)
+                game_sessions[game_id].total_damage_dealt = extra.get('total_damage_dealt', 0)
+                game_sessions[game_id].total_damage_taken = extra.get('total_damage_taken', 0)
+                game_sessions[game_id].boss_defeated = extra.get('boss_defeated', {})
+                game_sessions[game_id].difficulty = extra.get('difficulty', 'moyen')
+
     return game_sessions[game_id]
 
 
@@ -161,7 +181,11 @@ def index():
         'all_shops': SHOPS,
         'runes_data': game.get_runes_display(),
         'show_runes': game.show_runes,
-        'rune_buffs': game.get_rune_buff_summary()
+        'rune_buffs': game.get_rune_buff_summary(),
+        'loot_boost_info': game.get_loot_boost_info(),
+        'cards_data': game.get_cards_display(),
+        'cards_used': game.cards_used,
+        'score': game.get_score()
     }
     
     if 'last_message' in session:
@@ -311,6 +335,12 @@ def action():
 
         case 'craft_rune':
             message = game.craft_rune(action_value)
+
+        case 'buy_loot_boost':
+            message = game.buy_loot_boost()
+
+        case 'use_card':
+            message = game.use_card(action_value)
         
         case 'complete_quest':
             if game.complete_quest(action_value):
@@ -349,7 +379,10 @@ def action():
             'completed_quests': game.completed_quests.copy(),
             'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
             'unlocked_skills': game.unlocked_skills.copy(),
-            'rune_inventory': game.rune_inventory.copy()
+            'rune_inventory': game.rune_inventory.copy(),
+            'loot_boost_count': game.loot_boost_count,
+            'card_inventory': game.card_inventory.copy(),
+            'cards_used': game.cards_used.copy()
         }
         session.modified = True
         # Supprimer la session de jeu actuelle pour forcer un rechargement
@@ -391,7 +424,10 @@ def restart():
         'completed_quests': game.completed_quests.copy(),
         'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
         'unlocked_skills': game.unlocked_skills.copy(),
-        'rune_inventory': game.rune_inventory.copy()
+        'rune_inventory': game.rune_inventory.copy(),
+        'loot_boost_count': game.loot_boost_count,
+        'card_inventory': game.card_inventory.copy(),
+        'cards_used': game.cards_used.copy()
     }
 
     game_id = session.get('game_id')
@@ -404,6 +440,121 @@ def restart():
     session['game_id'] = os.urandom(16).hex()
     session.modified = True
     
+    return redirect(url_for('index'))
+
+
+@app.route('/save')
+def save_game():
+    """Exporte la sauvegarde du joueur en fichier JSON."""
+    game = get_game_session()
+    save_data = {
+        "version": "1.0",
+        "player_class": session.get('player_class', None),
+        "player_stats": {
+            "health": game.player_stats["health"],
+            "max_health": game.player_stats["max_health"],
+            "mana": game.player_stats["mana"],
+            "max_mana": game.player_stats["max_mana"],
+            "attack": game.player_stats["attack"],
+            "defense": game.player_stats["defense"],
+            "level": game.player_stats["level"],
+            "exp": game.player_stats["exp"],
+            "exp_for_next_level": game.player_stats["exp_for_next_level"],
+            "gold": game.player_stats["gold"]
+        },
+        "inventory": game.inventory.copy(),
+        "equipped": game.equipped.copy(),
+        "current_zone": game.current_zone,
+        "unlocked_zones": game.unlocked_zones.copy(),
+        "quest_progress": game.quest_progress.copy(),
+        "completed_quests": game.completed_quests.copy(),
+        "skills_learned": {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
+        "unlocked_skills": game.unlocked_skills.copy(),
+        "rune_inventory": game.rune_inventory.copy(),
+        "loot_boost_count": game.loot_boost_count,
+        "card_inventory": game.card_inventory.copy(),
+        "cards_used": game.cards_used.copy(),
+        "total_enemies_defeated": game.total_enemies_defeated,
+        "total_damage_dealt": game.total_damage_dealt,
+        "total_damage_taken": game.total_damage_taken,
+        "boss_defeated": game.boss_defeated.copy(),
+        "difficulty": game.difficulty
+    }
+    json_str = json.dumps(save_data, ensure_ascii=False, indent=2)
+    return send_file(
+        io.BytesIO(json_str.encode('utf-8')),
+        mimetype='application/json',
+        as_attachment=True,
+        download_name=f'gamepython_save_lvl{game.player_stats["level"]}.json'
+    )
+
+
+@app.route('/load', methods=['POST'])
+def load_game():
+    """Importe une sauvegarde depuis un fichier JSON."""
+    if 'save_file' not in request.files:
+        session['last_message'] = "Aucun fichier sélectionné."
+        return redirect(url_for('index'))
+    file = request.files['save_file']
+    if file.filename == '':
+        session['last_message'] = "Aucun fichier sélectionné."
+        return redirect(url_for('index'))
+    try:
+        content = file.read().decode('utf-8')
+        save_data = json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        session['last_message'] = "Fichier invalide ! Ce n'est pas une sauvegarde GamePython."
+        return redirect(url_for('index'))
+
+    if "version" not in save_data or "player_class" not in save_data:
+        session['last_message'] = "Fichier de sauvegarde invalide ou corrompu."
+        return redirect(url_for('index'))
+
+    # Sauvegarder dans la session
+    session['player_class'] = save_data.get('player_class')
+    session['saved_stats'] = {
+        'exp': save_data.get('player_stats', {}).get('exp', 0),
+        'level': save_data.get('player_stats', {}).get('level', 1),
+        'gold': save_data.get('player_stats', {}).get('gold', 0),
+        'exp_for_next_level': save_data.get('player_stats', {}).get('exp_for_next_level', 100),
+        'health': save_data.get('player_stats', {}).get('health', 100),
+        'max_health': save_data.get('player_stats', {}).get('max_health', 100),
+        'mana': save_data.get('player_stats', {}).get('mana', 50),
+        'max_mana': save_data.get('player_stats', {}).get('max_mana', 50),
+        'attack': save_data.get('player_stats', {}).get('attack', 5),
+        'defense': save_data.get('player_stats', {}).get('defense', 0),
+        'inventory': save_data.get('inventory', {}),
+        'equipped': save_data.get('equipped', {}),
+        'current_zone': save_data.get('current_zone', 1),
+        'unlocked_zones': save_data.get('unlocked_zones', [1]),
+        'quest_progress': save_data.get('quest_progress', {}),
+        'completed_quests': save_data.get('completed_quests', []),
+        'skills_learned': save_data.get('skills_learned', {}),
+        'unlocked_skills': save_data.get('unlocked_skills', {}),
+        'rune_inventory': save_data.get('rune_inventory', {}),
+        'loot_boost_count': save_data.get('loot_boost_count', 0),
+        'card_inventory': save_data.get('card_inventory', {}),
+        'cards_used': save_data.get('cards_used', [])
+    }
+
+    # Supprimer l'ancienne session de jeu pour forcer le rechargement
+    game_id = session.get('game_id')
+    if game_id and game_id in game_sessions:
+        del game_sessions[game_id]
+
+    # Restaurer les stats de jeu supplémentaires
+    session['extra_save'] = {
+        'total_enemies_defeated': save_data.get('total_enemies_defeated', 0),
+        'total_damage_dealt': save_data.get('total_damage_dealt', 0),
+        'total_damage_taken': save_data.get('total_damage_taken', 0),
+        'boss_defeated': save_data.get('boss_defeated', {}),
+        'difficulty': save_data.get('difficulty', 'moyen')
+    }
+
+    session['game_id'] = os.urandom(16).hex()
+    session['last_message'] = f"Sauvegarde chargée ! Classe: {save_data.get('player_class')}, Niveau: {save_data.get('player_stats', {}).get('level', 1)}"
+    session.modified = True
+
     return redirect(url_for('index'))
 
 

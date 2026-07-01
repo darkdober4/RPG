@@ -4,7 +4,8 @@ from game_config import (
     DIFFICULTY_SETTINGS, LOOT_BY_RARITY, CLASSES, DAILY_QUESTS,
     SKILLS, BOSSES, BOSS_EQUIPMENT_CONFIG, PROGRESSIVE_SKILLS,
     ZONES, ZONE_2_ENEMIES, ZONE_2_LOOT, ZONE_2_ITEMS,
-    RUNES, RUNE_RECIPES, RUNE_RARITIES, RUNE_DROP_CHANCE
+    RUNES, RUNE_RECIPES, RUNE_RARITIES, RUNE_DROP_CHANCE,
+    CARDS, CARD_DROP_CHANCE, CARD_BOSS_MULTIPLIER
 )
 import random
 from datetime import datetime
@@ -21,7 +22,8 @@ class GameEngine:
         self.inventory = {}
         self.equipped = {
             "weapon": None,
-            "armor": None
+            "armor": None,
+            "accessory": None
         }
         self.current_location = GAME_CONFIG["starting_location"]
         self.in_combat = False
@@ -73,6 +75,13 @@ class GameEngine:
         self.rune_inventory = {}  # {"Rune de Feu|mineure": 2, ...}
         self.active_rune_buffs = []  # [{"name": ..., "effect": ..., "value": ..., "turns_left": ...}, ...]
         self.show_runes = False
+
+        # Boost de loot (Colporteur Mystique)
+        self.loot_boost_count = 0
+
+        # Cartes permanentes
+        self.card_inventory = {}  # {"Carte de Force": 2, ...}
+        self.cards_used = []  # Historique des cartes utilisées pour les bonus
 
     def set_class(self, class_name):
         if class_name not in CLASSES:
@@ -156,8 +165,6 @@ class GameEngine:
                             })
                 
                 actions.extend([
-                    {"type": "check_inventory", "text": "Inventaire", "value": "check_inventory"},
-                    {"type": "check_stats", "text": "Stats", "value": "check_stats"},
                     {"type": "rest", "text": "Se reposer", "value": "rest"}
                 ])
         return actions
@@ -396,6 +403,10 @@ class GameEngine:
             if rune_drop:
                 combat_log += f"Rune : {rune_drop}\n"
 
+            card_drop = self.drop_card(self.current_enemy.get("level", 1), self.current_enemy.get("is_boss", False))
+            if card_drop:
+                combat_log += f"CARTE : {card_drop}\n"
+
             self.in_combat = False
             self.current_enemy = None
             self.enemy_health = 0
@@ -523,13 +534,16 @@ class GameEngine:
                 "legendaire": 0.05
             }
 
-        # Scaling : 0.1% base + 1% de la proba de base par niveau du monstre
-        # Ex: ennemi niv 5, commun (base 0.50) → 0.001 + 0.01 * 0.50 * 5 = 0.026 (2.6%)
-        # Ex: ennemi niv 30, legendaire (base 0.05) → 0.001 + 0.01 * 0.05 * 30 = 0.016 (1.6%)
+        # Scaling : 1.5% base + 2% de la proba de base par niveau du monstre
+        # Ex: ennemi niv 1, commun (base 0.55) → 0.015 + 0.02 * 0.55 * 1 = 0.026 (2.6%)
+        # Ex: ennemi niv 1 total ≈ 8% | niv 10 total ≈ 26% | niv 30 total ≈ 66%
+        # Boost Colporteur : +0.5% global par achat (0.005 par boost)
+        loot_boost_bonus = self.loot_boost_count * 0.005
+
         for rarity, base_prob in base_table.items():
             if rarity not in LOOT_BY_RARITY:
                 continue
-            drop_chance = 0.001 + (0.01 * base_prob * enemy_level)
+            drop_chance = 0.015 + (0.02 * base_prob * enemy_level) + loot_boost_bonus
             if random.random() < drop_chance:
                 item = random.choice(LOOT_BY_RARITY[rarity])
                 loot[item] = loot.get(item, 0) + 1
@@ -846,7 +860,8 @@ class GameEngine:
             "defense": self.player_stats["defense"],
             "gold": self.player_stats["gold"],
             "weapon": self.equipped.get("weapon", "Mains nues"),
-            "armor": self.equipped.get("armor", "Aucune")
+            "armor": self.equipped.get("armor", "Aucune"),
+            "accessory": self.equipped.get("accessory", "Aucun")
         }
         return stats
     
@@ -900,6 +915,28 @@ class GameEngine:
             return f"NPC {npc_name} non trouvé."
         dialogue_text = NPCS_DIALOGUE[npc_name]
         return f"<p><strong>{npc_name}:</strong> {dialogue_text}</p>"
+
+    def buy_loot_boost(self):
+        """Achète un boost de chance de loot (+0.5% cumulable)."""
+        cost = 1000 + (self.loot_boost_count * 500)
+        if self.player_stats["gold"] < cost:
+            return f"Or insuffisant ! (Prix: {cost} or, Vous: {self.player_stats['gold']} or)"
+        self.player_stats["gold"] -= cost
+        self.loot_boost_count += 1
+        total_bonus = self.loot_boost_count * 0.5
+        next_cost = 1000 + (self.loot_boost_count * 500)
+        return f"🍀 Chance de loot améliorée ! +0.5% (Total: +{total_bonus}%) — Prochain boost: {next_cost} or"
+
+    def get_loot_boost_info(self):
+        """Retourne les infos du boost de loot pour l'affichage."""
+        total_bonus = self.loot_boost_count * 0.5
+        next_cost = 1000 + (self.loot_boost_count * 500)
+        return {
+            "count": self.loot_boost_count,
+            "total_bonus": total_bonus,
+            "next_cost": next_cost,
+            "bonus_per_level": 0.5
+        }
 
     def rest(self):
         if self.in_combat:
@@ -1060,6 +1097,10 @@ class GameEngine:
                 if rune_drop:
                     result += f"Rune : {rune_drop}\n"
 
+                card_drop = self.drop_card(self.current_enemy.get("level", 1), self.current_enemy.get("is_boss", False))
+                if card_drop:
+                    result += f"CARTE : {card_drop}\n"
+
                 self.in_combat = False
                 self.current_enemy = None
                 self.enemy_health = 0
@@ -1072,13 +1113,53 @@ class GameEngine:
                     "is_critical": is_critical,
                     "enemy_defeated": True
                 }
+            # L'ennemi riposte si encore en vie
+            enemy_atk = self.current_enemy.get("attack", 5)
+            weaken_val = self.get_rune_buff_value("enemy_weaken")
+            if weaken_val > 0:
+                enemy_atk = max(1, enemy_atk - weaken_val)
+
+            enemy_damage = enemy_atk + random.randint(-2, 3)
+            player_defense = self.player_stats["defense"]
+            def_boost = self.get_rune_buff_value("defense_boost") + self.get_rune_buff_value("all_boost")
+            if self.has_rune_buff("berserk"):
+                berserk_penalty = RUNE_RECIPES.get("Fureur Primale", {}).get("penalty", 10)
+                def_boost -= berserk_penalty
+            enemy_damage = max(1, enemy_damage - (player_defense + def_boost) // 2)
+
+            self.take_damage(enemy_damage)
+            result += f"\n{self.current_enemy['name']} riposte et inflige {enemy_damage} dégâts !"
+
+            if self.player_stats['health'] <= 0:
+                result += "\nVous avez été vaincu !"
+                self.in_combat = False
+                self.current_enemy = None
+                self.enemy_health = 0
+                self.enemy_max_health = 0
+                self.reset_health()
+                return {
+                    "message": result,
+                    "action": "skill_attack",
+                    "skill_type": skill_type,
+                    "total_damage": total_damage,
+                    "enemy_damage": enemy_damage,
+                    "is_critical": is_critical,
+                    "hits": hits,
+                    "player_health": self.player_stats['health'],
+                    "enemy_health": self.enemy_health
+                }
+
+            self.combat_turn += 1
             return {
                 "message": result,
                 "action": "skill_attack",
                 "skill_type": skill_type,
                 "total_damage": total_damage,
+                "enemy_damage": enemy_damage,
                 "is_critical": is_critical,
-                "hits": hits
+                "hits": hits,
+                "player_health": self.player_stats['health'],
+                "enemy_health": self.current_enemy.get("health", 0)
             }
         return {
             "message": f"Vous avez utilisé {skill_name}! (Hors combat)",
@@ -1409,6 +1490,211 @@ class GameEngine:
             "inventory": inventory,
             "recipes": recipes,
             "active_buffs": self.active_rune_buffs
+        }
+
+    # ==================== SYSTÈME DE CARTES ====================
+
+    def drop_card(self, enemy_level, is_boss=False):
+        """Tente de faire tomber une carte après un combat."""
+        # Chance de base + loot boost du Colporteur + bonus légendaire
+        base_chance = CARD_DROP_CHANCE
+        loot_boost_bonus = self.loot_boost_count * 0.005
+        # Bonus légendaire : somme des probabilités légendaires de la loot table
+        legendary_bonus = 0
+        zone_info = self.get_zone_info()
+        if zone_info and 'loot_table' in zone_info:
+            legendary_prob = zone_info['loot_table'].get('legendaire', 0)
+        else:
+            legendary_prob = 0.05
+        legendary_bonus = 0.01 * legendary_prob * enemy_level
+
+        drop_chance = base_chance + loot_boost_bonus + legendary_bonus
+        if is_boss:
+            drop_chance *= CARD_BOSS_MULTIPLIER
+
+        if random.random() >= drop_chance:
+            return None
+
+        # Sélectionner une carte selon la rareté
+        # Plus l'ennemi est fort, plus les cartes épiques/légendaires sont probables
+        if enemy_level >= 20 or (is_boss and random.random() < 0.3):
+            possible = [name for name, data in CARDS.items() if data['rarity'] in ('epique', 'legendaire')]
+        elif enemy_level >= 10 or is_boss:
+            possible = [name for name, data in CARDS.items() if data['rarity'] in ('rare', 'epique')]
+        else:
+            possible = [name for name, data in CARDS.items() if data['rarity'] == 'rare']
+
+        if not possible:
+            return None
+
+        card_name = random.choice(possible)
+        self.card_inventory[card_name] = self.card_inventory.get(card_name, 0) + 1
+        card_data = CARDS[card_name]
+        return f"{card_data['icon']} {card_name}"
+
+    def use_card(self, card_name):
+        """Utilise une carte pour appliquer son bonus permanent."""
+        if card_name not in CARDS:
+            return "Carte inconnue !"
+        if card_name not in self.card_inventory or self.card_inventory[card_name] <= 0:
+            return f"Vous n'avez pas de {card_name} !"
+
+        card_data = CARDS[card_name]
+        stat = card_data["stat"]
+        value = card_data["value"]
+
+        # Consommer la carte
+        self.card_inventory[card_name] -= 1
+        if self.card_inventory[card_name] <= 0:
+            del self.card_inventory[card_name]
+
+        # Appliquer le bonus permanent
+        if stat == "loot_boost":
+            self.loot_boost_count += int(value / 0.5) if value >= 0.5 else 1
+            self.cards_used.append(card_name)
+            return f"{card_data['icon']} {card_name} utilisée ! Chance de loot +{value}% permanente !"
+        elif stat == "max_health":
+            self.player_stats["max_health"] += value
+            self.player_stats["health"] += value
+        elif stat == "max_mana":
+            self.player_stats["max_mana"] += value
+            self.player_stats["mana"] += value
+        elif stat == "attack":
+            self.player_stats["attack"] += value
+        elif stat == "defense":
+            self.player_stats["defense"] += value
+
+        self.cards_used.append(card_name)
+        stat_names = {"attack": "Attaque", "defense": "Défense", "max_health": "PV max", "max_mana": "Mana max"}
+        return f"{card_data['icon']} {card_name} utilisée ! {stat_names.get(stat, stat)} +{value} permanent !"
+
+    def get_cards_display(self):
+        """Retourne les cartes pour l'affichage."""
+        cards = []
+        for name, qty in self.card_inventory.items():
+            data = CARDS.get(name, {})
+            cards.append({
+                "name": name,
+                "icon": data.get("icon", "🃏"),
+                "rarity": data.get("rarity", "rare"),
+                "description": data.get("description", ""),
+                "lore": data.get("lore", ""),
+                "quantity": qty,
+                "stat": data.get("stat", ""),
+                "value": data.get("value", 0)
+            })
+        return cards
+
+    # ==================== SYSTÈME DE SCORE ====================
+
+    def get_score_details(self):
+        """Calcule le détail du score par catégorie."""
+        details = {}
+
+        details["Niveau"] = {
+            "value": self.player_stats["level"],
+            "points": self.player_stats["level"] * 100,
+            "icon": "⭐"
+        }
+
+        details["Ennemis vaincus"] = {
+            "value": self.total_enemies_defeated,
+            "points": self.total_enemies_defeated * 10,
+            "icon": "⚔️"
+        }
+
+        details["Boss vaincus"] = {
+            "value": len(self.boss_defeated),
+            "points": len(self.boss_defeated) * 500,
+            "icon": "👹"
+        }
+
+        details["Quêtes complétées"] = {
+            "value": len(self.completed_quests),
+            "points": len(self.completed_quests) * 200,
+            "icon": "📜"
+        }
+
+        details["Or accumulé"] = {
+            "value": self.player_stats["gold"],
+            "points": self.player_stats["gold"] // 5,
+            "icon": "💰"
+        }
+
+        details["Dégâts infligés"] = {
+            "value": self.total_damage_dealt,
+            "points": int(self.total_damage_dealt * 0.5),
+            "icon": "💥"
+        }
+
+        legendary_count = sum(
+            1 for item, qty in self.inventory.items()
+            if item in ITEMS and ITEMS[item].get("rarity") == "legendaire"
+            for _ in range(qty)
+        )
+        for slot, equipped_item in self.equipped.items():
+            if equipped_item and equipped_item in ITEMS and ITEMS[equipped_item].get("rarity") == "legendaire":
+                legendary_count += 1
+
+        details["Items légendaires"] = {
+            "value": legendary_count,
+            "points": legendary_count * 300,
+            "icon": "🏆"
+        }
+
+        details["Cartes utilisées"] = {
+            "value": len(self.cards_used),
+            "points": len(self.cards_used) * 150,
+            "icon": "🃏"
+        }
+
+        details["Zones explorées"] = {
+            "value": len(self.unlocked_zones),
+            "points": len(self.unlocked_zones) * 100,
+            "icon": "🗺️"
+        }
+
+        runes_count = sum(self.rune_inventory.values())
+        details["Runes collectées"] = {
+            "value": runes_count,
+            "points": runes_count * 20,
+            "icon": "🔮"
+        }
+
+        return details
+
+    def get_score(self):
+        """Retourne le score total du joueur."""
+        details = self.get_score_details()
+        total = sum(d["points"] for d in details.values())
+
+        if total < 500:
+            rank = "Novice"
+            rank_icon = "🥉"
+        elif total < 2000:
+            rank = "Apprenti"
+            rank_icon = "🥉"
+        elif total < 5000:
+            rank = "Aventurier"
+            rank_icon = "🥈"
+        elif total < 10000:
+            rank = "Héros"
+            rank_icon = "🥈"
+        elif total < 20000:
+            rank = "Champion"
+            rank_icon = "🥇"
+        elif total < 40000:
+            rank = "Légende"
+            rank_icon = "🥇"
+        else:
+            rank = "Dieu"
+            rank_icon = "👑"
+
+        return {
+            "total": total,
+            "rank": rank,
+            "rank_icon": rank_icon,
+            "details": details
         }
 
     def toggle_options(self):

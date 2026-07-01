@@ -1677,7 +1677,10 @@ LOCATIONS = {
         "exits": {
             "nord": "village",
             "est": "cave",
-            "ouest": "river"
+            "ouest": "river",
+            "nord-ouest": "mountain",
+            "sud-est": "valley",
+            "sud-ouest": "volcano"
         },
         "x": 50,
         "y": 70
@@ -1686,10 +1689,11 @@ LOCATIONS = {
         "name": "Village Paisible",
         "description": "Un petit village avec quelques maisons en bois. Les habitants vous regardent avec curiosité.",
         "enemies": [],
-        "npcs": ["Aubergiste", "Forgeron"],
+        "npcs": ["Aubergiste", "Forgeron", "Colporteur Mystique"],
         "exits": {
             "sud": "forest",
-            "est": "temple"
+            "est": "temple",
+            "ouest": "castle"
         },
         "x": 50,
         "y": 40
@@ -1758,7 +1762,8 @@ LOCATIONS = {
         "npcs": [],
         "exits": {
             "sud": "forest",
-            "est": "summit"
+            "est": "summit",
+            "sud-est": "tower"
         },
         "x": 15,
         "y": 15
@@ -1866,7 +1871,7 @@ LOCATIONS = {
 ENEMIES = {
     # ===== Ennemis Zone 1 (de base) =====
     "Goblin": {
-        "health": 40,
+        "health": 25,
         "attack": 10,
         "defense": 2,
         "level": 1,
@@ -1874,7 +1879,7 @@ ENEMIES = {
         "gold_reward": 10
     },
     "Loup": {
-        "health": 55,
+        "health": 35,
         "attack": 15,
         "defense": 4,
         "level": 2,
@@ -1890,7 +1895,7 @@ ENEMIES = {
         "gold_reward": 30
     },
     "Chauve-souris": {
-        "health": 35,
+        "health": 20,
         "attack": 12,
         "defense": 2,
         "level": 2,
@@ -2140,7 +2145,8 @@ NPCS_DIALOGUE = {
     "Pecheur": "La peche est bonne aujourd'hui. Pourquoi ne pas vous asseoir un moment?",
     "Pretre Sage": "La sagesse vient de l'experience. Continuez votre quete!",
     "Druide": "La nature vous benit. Vous gagnez 50 points de mana.",
-    "Gardien du Tresor": "NOOOOOON! CE TRESOR EST A MOI!!!"
+    "Gardien du Tresor": "NOOOOOON! CE TRESOR EST A MOI!!!",
+    "Colporteur Mystique": "Psst... J'ai un secret pour trouver de meilleurs trésors. Contre quelques pièces d'or, je peux améliorer votre chance de loot. Chaque achat augmente votre chance de 0.5%, et c'est cumulable à l'infini !"
 }
 
 # Configuration des BOSS - Créatures redoutables avec équipement
@@ -2535,3 +2541,79 @@ RUNE_RECIPES = {
 
 # Chances de drop de runes par ennemi (ajoutées au loot normal)
 RUNE_DROP_CHANCE = 0.40  # 40% de chance de drop une rune par combat
+
+# ==================== SYSTÈME DE CARTES ====================
+
+# Cartes : objets ultra-rares qui donnent des bonus permanents
+CARDS = {
+    "Carte de Force": {
+        "icon": "🃏💪",
+        "rarity": "rare",
+        "description": "Augmente l'attaque de +2 de façon permanente",
+        "stat": "attack",
+        "value": 2,
+        "lore": "Forgée dans le sang d'un guerrier ancien tombé au champ d'honneur, cette carte pulse d'une rage oubliée. Celui qui la brise sent ses muscles se tendre comme des cordes d'arc, et ses coups portent le poids de mille batailles."
+    },
+    "Carte de Vitalité": {
+        "icon": "🃏❤️",
+        "rarity": "rare",
+        "description": "Augmente les PV max de +10 de façon permanente",
+        "stat": "max_health",
+        "value": 10,
+        "lore": "On dit qu'elle fut créée par une guérisseuse du village de Brume-Claire, qui y enferma l'essence d'un cœur de dragon mourant. La carte bat encore faiblement entre vos doigts, comme si elle se souvenait de son dernier souffle."
+    },
+    "Carte de Fer": {
+        "icon": "🃏🛡️",
+        "rarity": "rare",
+        "description": "Augmente la défense de +2 de façon permanente",
+        "stat": "defense",
+        "value": 2,
+        "lore": "Trouvée dans les ruines de la forteresse d'Acier-Noir, cette carte porte l'empreinte d'un bouclier légendaire. Les forgerons nains qui la créèrent y insufflèrent la résistance de la montagne elle-même."
+    },
+    "Carte de Sagesse": {
+        "icon": "🃏📘",
+        "rarity": "rare",
+        "description": "Augmente le mana max de +10 de façon permanente",
+        "stat": "max_mana",
+        "value": 10,
+        "lore": "Arrachée au grimoire d'un archimage disparu il y a trois siècles, cette page vivante murmure des formules que seul votre esprit peut entendre. Les runes qui la parcourent se réarrangent à chaque lune."
+    },
+    "Carte du Titan": {
+        "icon": "🃏⚔️",
+        "rarity": "epique",
+        "description": "Augmente l'attaque de +5 de façon permanente",
+        "stat": "attack",
+        "value": 5,
+        "lore": "Les Titans de l'ère primordiale gravaient leur force dans des tablettes de cristal. Celle-ci est le dernier fragment connu — elle contient la fureur d'un être qui pouvait briser des montagnes à mains nues. Son poids semble impossible pour un simple morceau de parchemin."
+    },
+    "Carte du Colosse": {
+        "icon": "🃏🏔️",
+        "rarity": "epique",
+        "description": "Augmente les PV max de +25 de façon permanente",
+        "stat": "max_health",
+        "value": 25,
+        "lore": "Le Colosse de Valdris était une créature de pierre haute de cent coudées, invulnérable aux armes des mortels. Quand il s'effondra enfin, son corps se changea en milliers de ces cartes — chacune contenant une parcelle de son indestructibilité."
+    },
+    "Carte de l'Archimage": {
+        "icon": "🃏✨",
+        "rarity": "epique",
+        "description": "Augmente le mana max de +25 de façon permanente",
+        "stat": "max_mana",
+        "value": 25,
+        "lore": "Mérilinde l'Éternelle, dernière des Archimages, dispersa son savoir dans sept cartes avant de disparaître dans le Voile. Celle que vous tenez contient un océan de mana compressé — les étoiles qui la parcourent bougent encore."
+    },
+    "Carte du Destin": {
+        "icon": "🃏🍀",
+        "rarity": "legendaire",
+        "description": "Augmente la chance de loot de +0.5% de façon permanente",
+        "stat": "loot_boost",
+        "value": 0.5,
+        "lore": "Nul ne sait qui créa la Carte du Destin. Certains prétendent qu'elle existait avant le monde lui-même, tissée dans la trame du hasard par une entité au-delà de la compréhension. La posséder, c'est tordre subtilement les probabilités — les trésors viennent à vous comme attirés par une force invisible. On raconte qu'il en existe seulement sept dans toutes les réalités."
+    }
+}
+
+# Probabilité de base de drop une carte (1%)
+CARD_DROP_CHANCE = 0.01
+
+# Bonus pour les boss (3x plus de chance)
+CARD_BOSS_MULTIPLIER = 3.0
