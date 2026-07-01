@@ -1,1 +1,2 @@
-Start server.py to play
+# To start the game.
+python rpg_server.py
