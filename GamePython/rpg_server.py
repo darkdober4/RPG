@@ -9,6 +9,7 @@ Lance le jeu d'aventure en ligne
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify, send_file
 from game_engine import GameEngine
 from game_config import ITEMS, CLASSES, SKILLS, DAILY_QUESTS, LOCATIONS, SHOPS
+from translations import t
 import webbrowser
 import threading
 import os
@@ -57,12 +58,6 @@ def get_game_session():
                 game_sessions[game_id].player_stats['attack'] = saved_stats['attack']
             if 'defense' in saved_stats:
                 game_sessions[game_id].player_stats['defense'] = saved_stats['defense']
-            
-            # Charger les infos de zone
-            if 'current_zone' in saved_stats:
-                game_sessions[game_id].current_zone = saved_stats['current_zone']
-            if 'unlocked_zones' in saved_stats:
-                game_sessions[game_id].unlocked_zones = saved_stats['unlocked_zones']
             
             # CORRECTION : Charger l'inventaire et l'équipement avec les bons types
             saved_inventory = saved_stats.get('inventory', {})
@@ -121,6 +116,7 @@ def get_game_session():
                 game_sessions[game_id].boss_defeated = extra.get('boss_defeated', {})
                 game_sessions[game_id].difficulty = extra.get('difficulty', 'moyen')
 
+    game_sessions[game_id].language = session.get('language', 'fr')
     return game_sessions[game_id]
 
 
@@ -155,7 +151,7 @@ def index():
         'current_boss': getattr(game, 'current_boss', None),
         'game_over': game.game_over,
         'game_won': game.game_won,
-        'last_message': session.get('last_message', 'Bienvenue dans GamePython RPG Adventure!'),
+        'last_message': session.get('last_message', t('Bienvenue dans GamePython RPG Adventure!', game.language)),
         'inventory': game.inventory,
         'gold': game.player_stats['gold'],
         'current_shop': game.current_shop,
@@ -185,13 +181,14 @@ def index():
         'loot_boost_info': game.get_loot_boost_info(),
         'cards_data': game.get_cards_display(),
         'cards_used': game.cards_used,
-        'score': game.get_score()
+        'score': game.get_score(),
+        'language': session.get('language', 'fr')
     }
-    
+
     if 'last_message' in session:
         del session['last_message']
-    
-    return render_template('game.html', game_state=game_state)
+
+    return render_template('game.html', game_state=game_state, t=t)
 
 
 @app.route('/action', methods=['POST'])
@@ -215,11 +212,8 @@ def action():
         case 'explore':
             message = game.explore_location()
             game.close_shop()
-        case 'change_zone':
-            message = game.change_zone(action_value)
-            game.close_shop()
-        case 'explore_zone':
-            message = game.explore_zone(action_value)
+        case 'use_portal':
+            message = game.use_portal(action_value)
             game.close_shop()
         case 'rest':
             message = game.rest()
@@ -284,54 +278,59 @@ def action():
             item_name = parts[0]
             item_type = parts[1] if len(parts) > 1 else 'weapon'
             if game.equip_item(item_name, item_type):
-                message = f"{item_name} équipé(e)!"
+                message = t("équipé(e)!", game.language).join([item_name + " ", ""])
             else:
-                message = "Impossible d'équiper cet objet."
-        
+                message = t("Impossible d'équiper cet objet.", game.language)
+
         case 'unequip':
             if game.unequip_item(action_value):
-                message = "Objet dés-équipé!"
+                message = t("Objet dés-équipé!", game.language)
             else:
-                message = "Aucun objet à dés-équiper."
-        
+                message = t("Aucun objet à dés-équiper.", game.language)
+
         case 'use_item':
             message = game.use_item(action_value)
-        
+
         case 'drop_item':
             if game.drop_item(action_value):
-                message = f"{action_value} jeté(e)!"
+                message = f"{action_value} " + t("jeté(e)!", game.language)
             else:
-                message = "Objet non trouvé."
-        
+                message = t("Objet non trouvé.", game.language)
+
         case 'buy':
             message = game.buy_item(action_value)
-        
+
         case 'close_shop':
             message = game.close_shop()
-        
+
         # Actions d'interface
         case 'set_difficulty':
             message = game.set_difficulty(action_value)
-        
+
+        case 'set_language':
+            lang = action_value if action_value in ('fr', 'en') else 'fr'
+            session['language'] = lang
+            message = t("Langue changée.", game.language) if lang == 'fr' else "Language changed."
+
         case 'toggle_options':
             game.toggle_options()
-            message = "Options ouvertes." if game.show_options else "Options fermees."
-        
+            message = t("Options ouvertes.", game.language) if game.show_options else t("Options fermées.", game.language)
+
         case 'toggle_inventory':
             game.toggle_inventory()
-            message = "Inventaire ouvert." if game.show_inventory else "Inventaire fermé."
-        
+            message = t("Inventaire ouvert.", game.language) if game.show_inventory else t("Inventaire fermé.", game.language)
+
         case 'toggle_quests':
             game.toggle_quests()
-            message = "Quêtes ouvertes." if game.show_quests else "Quêtes fermées."
-        
+            message = t("Quêtes ouvertes.", game.language) if game.show_quests else t("Quêtes fermées.", game.language)
+
         case 'toggle_skills':
             game.toggle_skills()
-            message = "Compétences ouvertes." if game.show_skills else "Compétences fermées."
+            message = t("Compétences ouvertes.", game.language) if game.show_skills else t("Compétences fermées.", game.language)
 
         case 'toggle_runes':
             game.toggle_runes()
-            message = "Runes ouvertes." if game.show_runes else "Runes fermées."
+            message = t("Runes ouvertes.", game.language) if game.show_runes else t("Runes fermées.", game.language)
 
         case 'craft_rune':
             message = game.craft_rune(action_value)
@@ -341,19 +340,19 @@ def action():
 
         case 'use_card':
             message = game.use_card(action_value)
-        
+
         case 'complete_quest':
             if game.complete_quest(action_value):
                 quest_data = DAILY_QUESTS.get(action_value, {})
-                message = f"Quête complétée! +{quest_data.get('reward_exp', 0)} XP, +{quest_data.get('reward_gold', 0)} or"
+                message = t("Quête complétée!", game.language) + f" +{quest_data.get('reward_exp', 0)} XP, +{quest_data.get('reward_gold', 0)} " + t("or", game.language)
                 if quest_data.get('reward_item'):
                     message += f", +{quest_data.get('reward_item')}"
             else:
-                message = "Cette quête est déjà complétée ou non accomplie."
-        
+                message = t("Cette quête est déjà complétée ou non accomplie.", game.language)
+
         # Cas par défaut
         case _:
-            message = "Action inconnue."
+            message = t("Action inconnue.", game.language)
     
     game.check_win()
     
@@ -418,8 +417,6 @@ def restart():
         'max_mana': game.player_stats['max_mana'],
         'attack': game.player_stats['attack'],
         'defense': game.player_stats['defense'],
-        'current_zone': game.current_zone,
-        'unlocked_zones': game.unlocked_zones.copy(),
         'quest_progress': game.quest_progress.copy(),
         'completed_quests': game.completed_quests.copy(),
         'skills_learned': {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
@@ -464,8 +461,6 @@ def save_game():
         },
         "inventory": game.inventory.copy(),
         "equipped": game.equipped.copy(),
-        "current_zone": game.current_zone,
-        "unlocked_zones": game.unlocked_zones.copy(),
         "quest_progress": game.quest_progress.copy(),
         "completed_quests": game.completed_quests.copy(),
         "skills_learned": {k: v.copy() if isinstance(v, dict) else v for k, v in game.skills_learned.items()},
@@ -492,22 +487,23 @@ def save_game():
 @app.route('/load', methods=['POST'])
 def load_game():
     """Importe une sauvegarde depuis un fichier JSON."""
+    lang = session.get('language', 'fr')
     if 'save_file' not in request.files:
-        session['last_message'] = "Aucun fichier sélectionné."
+        session['last_message'] = t("Aucun fichier sélectionné.", lang)
         return redirect(url_for('index'))
     file = request.files['save_file']
     if file.filename == '':
-        session['last_message'] = "Aucun fichier sélectionné."
+        session['last_message'] = t("Aucun fichier sélectionné.", lang)
         return redirect(url_for('index'))
     try:
         content = file.read().decode('utf-8')
         save_data = json.loads(content)
     except (json.JSONDecodeError, UnicodeDecodeError):
-        session['last_message'] = "Fichier invalide ! Ce n'est pas une sauvegarde GamePython."
+        session['last_message'] = t("Fichier invalide ! Ce n'est pas une sauvegarde GamePython.", lang)
         return redirect(url_for('index'))
 
     if "version" not in save_data or "player_class" not in save_data:
-        session['last_message'] = "Fichier de sauvegarde invalide ou corrompu."
+        session['last_message'] = t("Fichier de sauvegarde invalide ou corrompu.", lang)
         return redirect(url_for('index'))
 
     # Sauvegarder dans la session
@@ -525,8 +521,6 @@ def load_game():
         'defense': save_data.get('player_stats', {}).get('defense', 0),
         'inventory': save_data.get('inventory', {}),
         'equipped': save_data.get('equipped', {}),
-        'current_zone': save_data.get('current_zone', 1),
-        'unlocked_zones': save_data.get('unlocked_zones', [1]),
         'quest_progress': save_data.get('quest_progress', {}),
         'completed_quests': save_data.get('completed_quests', []),
         'skills_learned': save_data.get('skills_learned', {}),
@@ -552,7 +546,7 @@ def load_game():
     }
 
     session['game_id'] = os.urandom(16).hex()
-    session['last_message'] = f"Sauvegarde chargée ! Classe: {save_data.get('player_class')}, Niveau: {save_data.get('player_stats', {}).get('level', 1)}"
+    session['last_message'] = t("Sauvegarde chargée !", lang) + f" {t('Classe:', lang)} {save_data.get('player_class')}, {t('Niveau:', lang)} {save_data.get('player_stats', {}).get('level', 1)}"
     session.modified = True
 
     return redirect(url_for('index'))

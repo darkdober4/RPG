@@ -3,12 +3,12 @@ from game_config import (
     GAME_CONFIG, LOCATIONS, ENEMIES, NPCS_DIALOGUE, ITEMS, SHOPS,
     DIFFICULTY_SETTINGS, LOOT_BY_RARITY, CLASSES, DAILY_QUESTS,
     SKILLS, BOSSES, BOSS_EQUIPMENT_CONFIG, PROGRESSIVE_SKILLS,
-    ZONES, ZONE_2_ENEMIES, ZONE_2_LOOT, ZONE_2_ITEMS,
     RUNES, RUNE_RECIPES, RUNE_RARITIES, RUNE_DROP_CHANCE,
     CARDS, CARD_DROP_CHANCE, CARD_BOSS_MULTIPLIER
 )
 import random
 from datetime import datetime
+from translations import t
 
 
 class GameEngine:
@@ -56,14 +56,18 @@ class GameEngine:
         self.daily_quests = {}
         self.quest_progress = {}
         self.completed_quests = []
-        
+
+        # Attributs spécifiques Pilleur
+        self.innate_crit_chance = 0.0
+        self.loot_quality_bonus = 1.0
+        self.double_or_nothing_active = False
+        self.fouille_accrue_active = False
+        self.gold_multiplier_next_kill = 1
+
         # Initialiser toutes les quêtes avec une progression de 0
         for quest_id in DAILY_QUESTS:
             self.quest_progress[quest_id] = 0
         
-        # Système de zones
-        self.current_zone = 1
-        self.unlocked_zones = [1]  # Zone 1 est toujours débloquée par défaut
         self.temporary_buffs = {}
         self.enemy_health = 0
         self.enemy_max_health = 0
@@ -83,6 +87,9 @@ class GameEngine:
         self.card_inventory = {}  # {"Carte de Force": 2, ...}
         self.cards_used = []  # Historique des cartes utilisées pour les bonus
 
+        # Langue
+        self.language = "fr"
+
     def set_class(self, class_name):
         if class_name not in CLASSES:
             return False
@@ -98,34 +105,42 @@ class GameEngine:
                 if skill_data.get("unlocked_at", 1) <= self.player_stats["level"]:
                     self.skills_learned[class_name][skill_name] = True
         
+        # Passifs Pilleur
+        if class_name == "Pilleur":
+            self.innate_crit_chance = 0.20
+            self.loot_quality_bonus = 1.20
+
         # Débloquer les compétences progressives selon le niveau
         self.unlock_progressive_skills()
-        # Vérifier les zones à débloquer
-        self.check_unlocked_zones()
         return True
     
     def get_location_description(self):
         if self.current_location not in LOCATIONS:
-            return "<p>Localisation inconnue</p>"
+            return f"<p>{t('Localisation inconnue', self.language)}</p>"
         location_data = LOCATIONS[self.current_location]
-        description = f"<h2>{location_data.get('name', 'Localisation')}</h2>"
-        description += f"<p>{location_data.get('description', 'Aucune description')}</p>"
+        loc_name = t(location_data.get('name', t('Localisation', self.language)), self.language)
+        loc_desc = t(location_data.get('description', t('Aucune description', self.language)), self.language)
+        description = f"<h2>{loc_name}</h2>"
+        description += f"<p>{loc_desc}</p>"
         if location_data.get("enemies"):
-            description += "<p><strong>Ennemis :</strong> " + ", ".join(location_data["enemies"]) + "</p>"
+            translated_enemies = [t(e, self.language) for e in location_data["enemies"]]
+            description += f"<p><strong>{t('Ennemis :', self.language)}</strong> " + ", ".join(translated_enemies) + "</p>"
         if location_data.get("npcs"):
-            description += "<p><strong>NPCs :</strong> " + ", ".join(location_data["npcs"]) + "</p>"
+            translated_npcs = [t(n, self.language) for n in location_data["npcs"]]
+            description += f"<p><strong>NPCs :</strong> " + ", ".join(translated_npcs) + "</p>"
         if location_data.get("shops"):
-            description += "<p><strong>Magasins :</strong> " + ", ".join(location_data["shops"]) + "</p>"
+            translated_shops = [t(s, self.language) for s in location_data["shops"]]
+            description += f"<p><strong>{t('Magasins :', self.language)}</strong> " + ", ".join(translated_shops) + "</p>"
         return description
     
     def get_available_actions(self):
         actions = []
         if self.in_combat:
             actions = [
-                {"type": "attack", "text": "Attaquer", "value": "attack"},
-                {"type": "use_skill", "text": "Utiliser compétence", "value": "use_skill"},
-                {"type": "use_item", "text": "Utiliser objet", "value": "use_item"},
-                {"type": "flee", "text": "Fuir le combat", "value": "flee"}
+                {"type": "attack", "text": t("Attaquer", self.language), "value": "attack"},
+                {"type": "use_skill", "text": t("Utiliser compétence", self.language), "value": "use_skill"},
+                {"type": "use_item", "text": t("Utiliser objet", self.language), "value": "use_item"},
+                {"type": "flee", "text": t("Fuir le combat", self.language), "value": "flee"}
             ]
         else:
             if self.current_location in LOCATIONS:
@@ -133,65 +148,79 @@ class GameEngine:
                 if location_data.get("exits"):
                     for direction, destination in location_data["exits"].items():
                         dest_name = LOCATIONS.get(destination, {}).get("name", destination)
+                        translated_dir = t(direction.upper(), self.language)
                         actions.append({
                             "type": "move",
-                            "text": f"Aller {direction.upper()} → {dest_name}",
+                            "text": f"{t('Aller', self.language)} {translated_dir} → {t(dest_name, self.language)}",
                             "value": destination
                         })
                 if location_data.get("enemies"):
                     actions.append({
                         "type": "fight",
-                        "text": "Combattre un ennemi",
+                        "text": t("Combattre un ennemi", self.language),
                         "value": ""
                     })
-                
-                # Ajouter des actions pour explorer chaque zone débloquée
-                for zone_id in self.unlocked_zones:
-                    zone_info = self.get_zone_info(zone_id)
-                    if zone_info:
-                        zone_name = zone_info['name']
-                        # Si c'est la zone actuelle, utiliser "Explorer" sinon "Explorer [Nom]"
-                        if zone_id == self.current_zone:
-                            actions.append({
-                                "type": "explore",
-                                "text": f"Explorer ({zone_name})",
-                                "value": "explore"
-                            })
-                        else:
-                            actions.append({
-                                "type": "explore_zone",
-                                "text": f"Explorer {zone_name}",
-                                "value": str(zone_id)
-                            })
-                
+
+                actions.append({
+                    "type": "explore",
+                    "text": t("Explorer", self.language),
+                    "value": "explore"
+                })
+
+                # Bouton portail si la location en possède un
+                portal_data = location_data.get("portal")
+                if portal_data:
+                    actions.append({
+                        "type": "use_portal",
+                        "text": f"🌀 {t(portal_data['text'], self.language)}",
+                        "value": portal_data["destination"]
+                    })
+
                 actions.extend([
-                    {"type": "rest", "text": "Se reposer", "value": "rest"}
+                    {"type": "rest", "text": t("Se reposer", self.language), "value": "rest"}
                 ])
         return actions
     
     def move(self, destination):
         if self.in_combat:
-            return "Vous ne pouvez pas vous déplacer pendant un combat !"
+            return t("Vous ne pouvez pas vous déplacer pendant un combat !", self.language)
         if self.current_location not in LOCATIONS:
-            return "Localisation actuelle inconnue !"
+            return t("Localisation actuelle inconnue !", self.language)
         location_data = LOCATIONS[self.current_location]
         exits = location_data.get("exits", {})
         if destination not in exits.values():
-            return f"Vous ne pouvez pas aller à {destination} depuis {self.current_location}."
+            return t("Vous ne pouvez pas aller à", self.language) + f" {destination} " + t("depuis", self.language) + f" {self.current_location}."
         self.current_location = destination
         self.visited_locations.add(destination)
         self.close_shop()
-        return f"Vous vous êtes déplacé vers {destination}."
-    
+        return t("Vous vous êtes déplacé vers", self.language) + f" {destination}."
+
+    def use_portal(self, destination):
+        if self.in_combat:
+            return t("Vous ne pouvez pas utiliser le portail pendant un combat !", self.language)
+        if self.current_location not in LOCATIONS:
+            return t("Localisation actuelle inconnue !", self.language)
+        location_data = LOCATIONS[self.current_location]
+        portal_data = location_data.get("portal")
+        if not portal_data:
+            return t("Il n'y a pas de portail ici.", self.language)
+        if portal_data["destination"] != destination:
+            return t("Destination invalide.", self.language)
+        self.current_location = destination
+        self.visited_locations.add(destination)
+        self.close_shop()
+        dest_name = LOCATIONS.get(destination, {}).get("name", destination)
+        return f"🌀 {t('Vous traversez le portail...', self.language)} {t('Vous arrivez à', self.language)} {t(dest_name, self.language)} !"
+
     def explore_location(self):
         if self.current_location not in LOCATIONS:
-            return "Localisation inconnue !"
+            return t("Localisation inconnue !", self.language)
         location_data = LOCATIONS[self.current_location]
-        exploration_result = f"Vous explorez {location_data.get('name', 'la zone')}...\n"
-        
+        exploration_result = t("Vous explorez", self.language) + f" {location_data.get('name', t('la zone', self.language))}...\n"
+
         # 30% de chance de trouver du loot (comme avant)
         if random.random() < 0.3:
-            # Utiliser get_loot() pour avoir un loot basé sur la zone actuelle
+            # Utiliser get_loot() pour un loot basé sur le niveau
             loot = self.get_loot(self.player_stats.get("level", 1))
             if loot:
                 for item, qty in loot.items():
@@ -199,50 +228,26 @@ class GameEngine:
                         self.inventory[item] += qty
                     else:
                         self.inventory[item] = qty
-                    exploration_result += f"Vous avez trouvé : {item} (x{qty})\n"
+                    exploration_result += t("Vous avez trouvé :", self.language) + f" {item} (x{qty})\n"
             else:
-                exploration_result += "Vous n'avez rien trouvé d'intéressant.\n"
+                exploration_result += t("Vous n'avez rien trouvé d'intéressant.", self.language) + "\n"
         else:
-            exploration_result += "Vous n'avez rien trouvé d'intéressant.\n"
-        
+            exploration_result += t("Vous n'avez rien trouvé d'intéressant.", self.language) + "\n"
+
         # 25% de chance de déclencher un combat (comme avant)
         if random.random() < 0.25 and location_data.get("enemies"):
-            exploration_result += "\nUn ennemi vous barre le chemin !"
+            exploration_result += "\n" + t("Un ennemi vous barre le chemin !", self.language)
             self.start_fight()
         return exploration_result
     
-    def explore_zone(self, zone_id):
-        """Change de zone et explore directement, ou explore la zone actuelle"""
-        # Si zone_id est "explore", explorer la zone actuelle
-        if zone_id == "explore":
-            return self.explore_location()
-        
-        # Sinon, changer de zone et explorer
-        try:
-            result = self.set_zone(int(zone_id))
-            if "non disponible" in result or "invalide" in result:
-                return result
-            # Explorer la nouvelle zone
-            return self.explore_location()
-        except (ValueError, TypeError):
-            # Si zone_id n'est pas convertible en int, explorer la zone actuelle
-            return self.explore_location()
-    
     def start_fight(self, enemy=None):
         if self.current_location not in LOCATIONS:
-            return "Pas d'ennemi ici !"
+            return t("Pas d'ennemi ici !", self.language)
         location_data = LOCATIONS[self.current_location]
         available_enemies = location_data.get("enemies", [])
-        
-        # Ajouter les ennemis de la zone actuelle
-        zone_info = self.get_zone_info()
-        if self.current_zone == 2:  # Zone 2
-            # Ajouter les ennemis spécifiques à la Zone 2
-            zone2_enemies = list(ZONE_2_ENEMIES.keys())
-            available_enemies = list(set(available_enemies + zone2_enemies))
-        
+
         if not available_enemies and enemy is None:
-            return "Pas d'ennemi disponible !"
+            return t("Pas d'ennemi disponible !", self.language)
         
         if random.random() < self.boss_spawn_chance and BOSSES:
             boss_name = random.choice(list(BOSSES.keys()))
@@ -265,7 +270,7 @@ class GameEngine:
         else:
             enemy_name = enemy or random.choice(available_enemies)
             if enemy_name not in ENEMIES:
-                return f"Ennemi {enemy_name} introuvable !"
+                return t("Ennemi", self.language) + f" {enemy_name} " + t("introuvable !", self.language)
             self.current_enemy = ENEMIES[enemy_name].copy()
             self.current_enemy["name"] = enemy_name
             self.current_enemy["is_boss"] = False
@@ -281,11 +286,12 @@ class GameEngine:
         
         self.in_combat = True
         self.combat_turn = 0
-        return f"Un combat a commencé contre {self.current_enemy['name']} !"
+        enemy_display = t(self.current_enemy['name'], self.language)
+        return t("Un combat a commencé contre", self.language) + f" {enemy_display} !"
     
     def attack_enemy(self):
         if not self.in_combat or not self.current_enemy:
-            return {"message": "Vous n'êtes pas en combat !", "action": "none"}
+            return {"message": t("Vous n'êtes pas en combat !", self.language), "action": "none"}
 
         rune_log = ""
 
@@ -294,7 +300,7 @@ class GameEngine:
         if regen_val > 0:
             healed = self.heal(regen_val)
             if healed > 0:
-                rune_log += f"\n🌿 Régénération : +{healed} HP"
+                rune_log += f"\n🌿 {t('Régénération :', self.language)} +{healed} HP"
 
         # Rune: enemy_weaken (réduit ATK ennemi)
         weaken_val = self.get_rune_buff_value("enemy_weaken")
@@ -322,7 +328,7 @@ class GameEngine:
         if bonus_dmg > 0:
             player_damage += bonus_dmg
             self.consume_rune_buff("bonus_damage_next")
-            rune_log += "\n💥 Bonus de rune explosé !"
+            rune_log += "\n💥 " + t("Bonus de rune explosé !", self.language)
 
         enemy_defense = self.current_enemy.get("defense", 0)
         player_damage = max(1, player_damage - enemy_defense // 2)
@@ -346,31 +352,36 @@ class GameEngine:
         enemy_damage = max(1, enemy_damage - (player_defense + def_boost) // 2)
 
         # Déterminer si c'est un coup critique
-        is_critical = random.random() < 0.1
+        is_critical = random.random() < (0.1 + self.innate_crit_chance)
         # Rune: guaranteed_crit
         if self.has_rune_buff("guaranteed_crit"):
             is_critical = True
             crit_mult = self.get_rune_buff_value("guaranteed_crit")
             player_damage = int(player_damage * crit_mult)
             self.consume_rune_buff("guaranteed_crit")
-            rune_log += "\n💀 Frappe de l'Ombre : critique garanti !"
+            rune_log += "\n💀 " + t("Frappe de l'Ombre : critique garanti !", self.language)
         elif is_critical:
             player_damage = int(player_damage * 1.5)
+            # Pilleur passif : Cascade Critique soigne 25% des dégâts sur critique
+            if self.player_class == "Pilleur" and "Cascade Critique" in self.unlocked_skills:
+                heal_amount = self.heal(int(player_damage * 0.25))
+                if heal_amount > 0:
+                    rune_log += f"\n⚡ {t('Cascade Critique :', self.language)} +{heal_amount} HP"
 
         # Rune: multi_hit (chance de frapper plusieurs fois)
         extra_hits = 0
         if self.has_rune_buff("multi_hit") and random.random() < 0.4:
             extra_hits = self.get_rune_buff_value("multi_hit") - 1
             player_damage *= (extra_hits + 1)
-            rune_log += f"\n🌀 Vortex : {extra_hits + 1} frappes !"
+            rune_log += f"\n🌀 {t('Vortex :', self.language)} {extra_hits + 1} {t('frappes !', self.language)}"
 
         self.current_enemy["health"] -= player_damage
         self.total_damage_dealt += player_damage
         self.enemy_health = self.current_enemy.get("health", 0)
 
-        combat_log = f"Vous avez infligé {player_damage} dégâts !"
+        combat_log = t("Vous avez infligé", self.language) + f" {player_damage} " + t("dégâts !", self.language)
         if is_critical:
-            combat_log = f"COUP CRITIQUE ! {player_damage} dégâts !"
+            combat_log = t("COUP CRITIQUE !", self.language) + f" {player_damage} " + t("dégâts !", self.language)
         combat_log += rune_log
 
         # Tick des buffs de runes
@@ -382,30 +393,65 @@ class GameEngine:
             gold_gain = self.current_enemy.get("gold_reward", 20)
             enemy_name = self.current_enemy["name"]
             
+            # Pilleur : Trésor Vivant (gold bonus passif inné)
+            if self.player_class == "Pilleur":
+                tresor_bonus = int(gold_gain * 0.15)
+                gold_gain += tresor_bonus
+                combat_log += f"\n💎 {t('Trésor Vivant :', self.language)} +{tresor_bonus} " + t("or bonus !", self.language)
+
+            # Pilleur : multiplicateur d'or (Ruée d'Or)
+            if self.gold_multiplier_next_kill > 1:
+                extra_gold = gold_gain * (self.gold_multiplier_next_kill - 1)
+                gold_gain += int(extra_gold)
+                ruee_or_txt = t("Ruée d'Or :", self.language)
+                combat_log += f"\n💰 {ruee_or_txt} x{self.gold_multiplier_next_kill} " + t("or !", self.language)
+                self.gold_multiplier_next_kill = 1
+
+            # Pilleur : Fouille Accrue or +50%
+            if self.fouille_accrue_active:
+                fouille_gold = int(gold_gain * 0.5)
+                gold_gain += fouille_gold
+                combat_log += f"\n🔍 {t('Fouille Accrue :', self.language)} +{fouille_gold} " + t("or bonus !", self.language)
+
             self.player_stats["gold"] += gold_gain
             self.update_quest_progress(enemy_name=enemy_name)
             self.update_quest_progress(gold_gain=gold_gain)
             self.add_exp(exp_gain)
             self.total_enemies_defeated += 1
-            
+
             if self.current_enemy.get("is_boss"):
                 self.boss_defeated[self.current_enemy["name"]] = True
-            
-            combat_log += f"\n{self.current_enemy['name']} a été vaincu !\n"
-            combat_log += f"Expérience gagnée : {exp_gain}\nOr gagné : {gold_gain}\n"
-            
+
+            combat_log += f"\n{self.current_enemy['name']} " + t("a été vaincu !", self.language) + "\n"
+            combat_log += t("Expérience gagnée :", self.language) + f" {exp_gain}\n" + t("Or gagné :", self.language) + f" {gold_gain}\n"
+
+            # Pilleur : Double ou Rien sur le loot
+            if self.double_or_nothing_active:
+                self.double_or_nothing_active = False
+                if random.random() < 0.5:
+                    for item, qty in loot.items():
+                        loot[item] = qty * 2
+                    combat_log += f"\n🎲 {t('Double ou Rien : DOUBLE ! Loot doublé !', self.language)}\n"
+                else:
+                    loot = {}
+                    combat_log += f"\n🎲 {t('Double ou Rien : RIEN ! Loot perdu...', self.language)}\n"
+
             if loot:
                 for item, qty in loot.items():
                     self.inventory[item] = self.inventory.get(item, 0) + qty
-                    combat_log += f"Butin : {item} (x{qty})\n"
+                    combat_log += t("Butin :", self.language) + f" {item} (x{qty})\n"
+
+            # Pilleur : Fouille Accrue — reset après kill
+            if self.fouille_accrue_active:
+                self.fouille_accrue_active = False
 
             rune_drop = self.drop_rune(self.current_enemy.get("level", 1))
             if rune_drop:
-                combat_log += f"Rune : {rune_drop}\n"
+                combat_log += t("Rune :", self.language) + f" {rune_drop}\n"
 
             card_drop = self.drop_card(self.current_enemy.get("level", 1), self.current_enemy.get("is_boss", False))
             if card_drop:
-                combat_log += f"CARTE : {card_drop}\n"
+                combat_log += "CARTE : " + f"{card_drop}\n"
 
             self.in_combat = False
             self.current_enemy = None
@@ -421,16 +467,16 @@ class GameEngine:
             }
         
         self.take_damage(enemy_damage)
-        combat_log += f"\nL'ennemi a infligé {enemy_damage} dégâts !"
-        
+        combat_log += "\n" + t("L'ennemi a infligé", self.language) + f" {enemy_damage} " + t("dégâts !", self.language)
+
         # Save enemy health before potential cleanup
         current_enemy_health = self.current_enemy['health']
-        
-        combat_log += f"\nVie ennemie : {current_enemy_health}"
-        combat_log += f"\nVotre vie : {self.player_stats['health']}"
-        
+
+        combat_log += "\n" + t("Vie ennemie :", self.language) + f" {current_enemy_health}"
+        combat_log += "\n" + t("Votre vie :", self.language) + f" {self.player_stats['health']}"
+
         if self.player_stats['health'] <= 0:
-            combat_log += "\nVous avez été vaincu !"
+            combat_log += "\n" + t("Vous avez été vaincu !", self.language)
             self.in_combat = False
             self.current_enemy = None
             self.enemy_health = 0
@@ -484,10 +530,7 @@ class GameEngine:
             self.player_stats["exp"] -= self.player_stats["exp_for_next_level"]
             self.player_stats["level"] += 1
             self.player_stats["exp_for_next_level"] = int(self.player_stats["exp_for_next_level"] * 1.1)
-            
-            # Vérifier les zones à débloquer
-            self.check_unlocked_zones()
-            
+
             if self.player_class in CLASSES:
                 # Bonus de mana pour TOUTES les classes : 5 + 0.1% du mana max par niveau
                 current_max_mana = self.player_stats.get("max_mana", 50)
@@ -514,7 +557,14 @@ class GameEngine:
                         self.player_stats["max_mana"] += 1
                         self.player_stats["health"] += 4
                         self.player_stats["max_health"] += 4
-            
+                    case "Pilleur":
+                        self.player_stats["attack"] += 1
+                        self.player_stats["defense"] += 1
+                        self.player_stats["health"] += 3
+                        self.player_stats["max_health"] += 3
+                        self.innate_crit_chance += 0.005
+                        self.loot_quality_bonus += 0.01
+
             self.unlock_progressive_skills()
     
     def get_loot(self, enemy_level):
@@ -522,21 +572,14 @@ class GameEngine:
         if not LOOT_BY_RARITY:
             return loot
 
-        # Récupérer la loot table de la zone (probabilités de base par rareté)
-        zone_info = self.get_zone_info()
-        if zone_info and 'loot_table' in zone_info:
-            base_table = zone_info['loot_table']
-        else:
-            base_table = {
-                "commun": 0.50,
-                "rare": 0.30,
-                "epique": 0.15,
-                "legendaire": 0.05
-            }
+        base_table = {
+            "commun": 0.50,
+            "rare": 0.30,
+            "epique": 0.15,
+            "legendaire": 0.05
+        }
 
         # Scaling : 1.5% base + 2% de la proba de base par niveau du monstre
-        # Ex: ennemi niv 1, commun (base 0.55) → 0.015 + 0.02 * 0.55 * 1 = 0.026 (2.6%)
-        # Ex: ennemi niv 1 total ≈ 8% | niv 10 total ≈ 26% | niv 30 total ≈ 66%
         # Boost Colporteur : +0.5% global par achat (0.005 par boost)
         loot_boost_bonus = self.loot_boost_count * 0.005
 
@@ -544,33 +587,32 @@ class GameEngine:
             if rarity not in LOOT_BY_RARITY:
                 continue
             drop_chance = 0.015 + (0.02 * base_prob * enemy_level) + loot_boost_bonus
+            # Pilleur passif : qualité de loot augmentée
+            drop_chance *= self.loot_quality_bonus
+            # Pilleur : Fouille Accrue double la chance de loot
+            if self.fouille_accrue_active:
+                drop_chance *= 2.0
             if random.random() < drop_chance:
                 item = random.choice(LOOT_BY_RARITY[rarity])
                 loot[item] = loot.get(item, 0) + 1
-
-            # Zone 2 : même formule, pool d'items supplémentaire
-            if self.current_zone == 2 and rarity in ZONE_2_LOOT:
-                if random.random() < drop_chance:
-                    zone2_item = random.choice(ZONE_2_LOOT[rarity])
-                    loot[zone2_item] = loot.get(zone2_item, 0) + 1
 
         return loot
     
     def equip_item(self, item_name, item_type):
         if item_type not in self.equipped:
-            return f"Type d'équipement {item_type} invalide !"
+            return t("Type d'équipement", self.language) + f" {item_type} " + t("invalide !", self.language)
         if item_name not in ITEMS:
-            return f"Objet {item_name} introuvable !"
+            return t("Objet", self.language) + f" {item_name} " + t("introuvable !", self.language)
         if item_name not in self.inventory or self.inventory[item_name] <= 0:
-            return f"Vous n'avez pas {item_name} dans votre inventaire !"
+            return t("Vous n'avez pas", self.language) + f" {item_name} " + t("dans votre inventaire !", self.language)
 
         item_data = ITEMS[item_name]
         if item_data.get("type") != item_type:
-            return f"{item_name} n'est pas un {item_type} !"
+            return f"{item_name} " + t("n'est pas un", self.language) + f" {item_type} !"
 
         required_level = item_data.get("required_level", 1)
         if self.player_stats["level"] < required_level:
-            return f"Niveau insuffisant pour équiper {item_name} ! (Requis: niv {required_level}, Vous: niv {self.player_stats['level']})"
+            return t("Niveau insuffisant pour équiper", self.language) + f" {item_name} ! (" + t("Requis: niv", self.language) + f" {required_level}, " + t("Vous: niv", self.language) + f" {self.player_stats['level']})"
         
         if self.equipped[item_type]:
             old_item = self.equipped[item_type]
@@ -608,13 +650,13 @@ class GameEngine:
                         self.player_stats["max_mana"] = self.player_stats.get("max_mana", 50) + item_data[stat_key]
                         self.player_stats["mana"] = self.player_stats["max_mana"]
         
-        return f"Vous avez équipé {item_name} !"
+        return t("Vous avez équipé", self.language) + f" {item_name} !"
     
     def unequip_item(self, item_type):
         if item_type not in self.equipped:
-            return f"Type d'équipement {item_type} invalide !"
+            return t("Type d'équipement", self.language) + f" {item_type} " + t("invalide !", self.language)
         if not self.equipped[item_type]:
-            return f"Vous n'avez rien d'équipé en {item_type} !"
+            return t("Vous n'avez rien d'équipé en", self.language) + f" {item_type} !"
         
         item_name = self.equipped[item_type]
         item_data = ITEMS.get(item_name, {})
@@ -635,44 +677,44 @@ class GameEngine:
         
         self.equipped[item_type] = None
         self.inventory[item_name] = self.inventory.get(item_name, 0) + 1
-        return f"Vous avez déséquipé {item_name} !"
+        return t("Vous avez déséquipé", self.language) + f" {item_name} !"
     
     def use_item(self, item_name):
         if item_name not in self.inventory or self.inventory[item_name] <= 0:
-            return f"Vous n'avez pas {item_name} !"
+            return t("Vous n'avez pas", self.language) + f" {item_name} !"
         if item_name not in ITEMS:
-            return f"Objet {item_name} introuvable !"
-        
+            return t("Objet", self.language) + f" {item_name} " + t("introuvable !", self.language)
+
         item_data = ITEMS[item_name]
         if item_data.get("type") != "consumable":
-            return f"{item_name} n'est pas consommable !"
-        
-        effect_message = f"Vous avez utilisé {item_name} !\n"
-        
+            return f"{item_name} " + t("n'est pas consommable !", self.language)
+
+        effect_message = t("Vous avez utilisé", self.language) + f" {item_name} !\n"
+
         if item_data.get("heal"):
             healed = self.heal(item_data["heal"])
-            effect_message += f"Santé restaurée : {healed} HP\n"
-        
+            effect_message += t("Santé restaurée :", self.language) + f" {healed} HP\n"
+
         if item_data.get("mana"):
-            mana_restored = min(item_data["mana"], 
+            mana_restored = min(item_data["mana"],
                               self.player_stats["max_mana"] - self.player_stats["mana"])
             self.player_stats["mana"] += mana_restored
-            effect_message += f"Mana restauré : {mana_restored} MP\n"
-        
+            effect_message += t("Mana restauré :", self.language) + f" {mana_restored} MP\n"
+
         if item_data.get("exp_boost"):
-            effect_message += f"Bonus d'expérience : {item_data['exp_boost']}%\n"
-        
+            effect_message += t("Bonus d'expérience :", self.language) + f" {item_data['exp_boost']}%\n"
+
         if item_data.get("attack_boost"):
             boost = item_data["attack_boost"]
             duration = item_data.get("duration", 3)
             self.temporary_buffs["attack"] = boost
-            effect_message += f"Attaque augmentée de +{boost} pendant {duration} tours !\n"
-        
+            effect_message += t("Attaque augmentée de", self.language) + f" +{boost} " + t("pendant", self.language) + f" {duration} " + t("tours !", self.language) + "\n"
+
         if item_data.get("defense_boost"):
             boost = item_data["defense_boost"]
             duration = item_data.get("duration", 3)
             self.temporary_buffs["defense"] = boost
-            effect_message += f"Défense augmentée de +{boost} pendant {duration} tours !\n"
+            effect_message += t("Défense augmentée de", self.language) + f" +{boost} " + t("pendant", self.language) + f" {duration} " + t("tours !", self.language) + "\n"
         
         self.inventory[item_name] -= 1
         if self.inventory[item_name] <= 0:
@@ -682,34 +724,34 @@ class GameEngine:
     
     def visit_shop(self, shop_name):
         if shop_name not in SHOPS:
-            return f"Magasin {shop_name} introuvable !"
+            return t("Magasin", self.language) + f" {shop_name} " + t("introuvable !", self.language)
         self.current_shop = shop_name
         shop_data = SHOPS[shop_name]
-        return f"Bienvenue chez {shop_name} ! {shop_data.get('description', '')}"
+        return t("Bienvenue chez", self.language) + f" {shop_name} ! {shop_data.get('description', '')}"
     
     def buy_item(self, item_name):
         if not self.current_shop or self.current_shop not in SHOPS:
-            return "Vous n'êtes pas dans un magasin !"
+            return t("Vous n'êtes pas dans un magasin !", self.language)
         shop_data = SHOPS[self.current_shop]
         shop_items = shop_data.get("items", [])
         if item_name not in shop_items:
-            return f"{item_name} n'est pas vendu ici !"
+            return f"{item_name} " + t("n'est pas vendu ici !", self.language)
         item_data = ITEMS.get(item_name, {})
         price = item_data.get("price", 0)
         if self.player_stats["gold"] < price:
-            return f"Vous n'avez pas assez d'or ! (Prix: {price}, Or: {self.player_stats['gold']})"
+            return t("Vous n'avez pas assez d'or !", self.language) + f" (" + t("Prix:", self.language) + f" {price}, " + t("Or:", self.language) + f" {self.player_stats['gold']})"
         self.player_stats["gold"] -= price
         self.inventory[item_name] = self.inventory.get(item_name, 0) + 1
-        return f"Vous avez acheté {item_name} pour {price} or !"
+        return t("Vous avez acheté", self.language) + f" {item_name} " + t("pour", self.language) + f" {price} " + t("or !", self.language)
     
     def sell_item(self, item_name):
         if item_name not in self.inventory or self.inventory[item_name] <= 0:
-            return f"Vous n'avez pas {item_name} !"
+            return t("Vous n'avez pas", self.language) + f" {item_name} !"
         if item_name not in ITEMS:
-            return f"Objet {item_name} introuvable !"
+            return t("Objet", self.language) + f" {item_name} " + t("introuvable !", self.language)
         for slot, equipped_item in self.equipped.items():
             if equipped_item == item_name:
-                return f"Vous devez d'abord déséquiper {item_name} !"
+                return t("Vous devez d'abord déséquiper", self.language) + f" {item_name} !"
         item_data = ITEMS[item_name]
         price = item_data.get("sell_price", item_data.get("price", 10) // 2)
         self.player_stats["gold"] += price
@@ -718,7 +760,7 @@ class GameEngine:
         self.inventory[item_name] -= 1
         if self.inventory[item_name] <= 0:
             del self.inventory[item_name]
-        return f"Vous avez vendu {item_name} pour {price} or !"
+        return t("Vous avez vendu", self.language) + f" {item_name} " + t("pour", self.language) + f" {price} " + t("or !", self.language)
     
     def get_current_shop_items(self):
         if not self.current_shop or self.current_shop not in SHOPS:
@@ -798,7 +840,7 @@ class GameEngine:
         if self.current_location not in LOCATIONS:
             return {
                 "current": self.current_location,
-                "current_name": "Localisation inconnue",
+                "current_name": t("Localisation inconnue", self.language),
                 "available_exits": []
             }
         location_data = LOCATIONS[self.current_location]
@@ -841,7 +883,7 @@ class GameEngine:
     
     def reset_game(self):
         self.__init__()
-        return "Le jeu a été réinitialisé !"
+        return t("Le jeu a été réinitialisé !", self.language)
     
     def reset_health(self):
         self.player_stats["health"] = self.player_stats["max_health"]
@@ -859,21 +901,21 @@ class GameEngine:
             "attack": self.player_stats["attack"],
             "defense": self.player_stats["defense"],
             "gold": self.player_stats["gold"],
-            "weapon": self.equipped.get("weapon", "Mains nues"),
-            "armor": self.equipped.get("armor", "Aucune"),
-            "accessory": self.equipped.get("accessory", "Aucun")
+            "weapon": self.equipped.get("weapon") or t("Mains nues", self.language),
+            "armor": self.equipped.get("armor") or t("Aucune", self.language),
+            "accessory": self.equipped.get("accessory") or t("Aucun", self.language)
         }
         return stats
     
     def get_player_stats_display(self):
         stats = self.get_player_stats()
         display = ""
-        display += f"<strong>Niveau {stats['level']}</strong><br>"
-        display += f"Santé: {stats['health']}/{stats['max_health']}<br>"
-        display += f"Mana: {stats['mana']}/{stats['max_mana']}<br>"
-        display += f"Attaque: {stats['attack']}<br>"
-        display += f"Défense: {stats['defense']}<br>"
-        display += f"Or: {stats['gold']}<br>"
+        display += f"<strong>{t('Niveau', self.language)} {stats['level']}</strong><br>"
+        display += f"{t('Santé:', self.language)} {stats['health']}/{stats['max_health']}<br>"
+        display += f"{t('Mana:', self.language)} {stats['mana']}/{stats['max_mana']}<br>"
+        display += f"{t('Attaque:', self.language)} {stats['attack']}<br>"
+        display += f"{t('Défense:', self.language)} {stats['defense']}<br>"
+        display += f"{t('Or:', self.language)} {stats['gold']}<br>"
         display += f"EXP: {stats['exp']}/{stats['exp_for_next_level']}"
         return display
     
@@ -895,7 +937,7 @@ class GameEngine:
                 'id': quest_id,
                 'name': quest_id,
                 'icon': quest_data.get('icon', '📜'),
-                'description': quest_data.get('description', 'Pas de description'),
+                'description': quest_data.get('description', t('Pas de description', self.language)),
                 'reward_exp': quest_data.get('reward_exp', 0),
                 'reward_gold': quest_data.get('reward_gold', 0),
                 'reward_item': quest_data.get('reward_item', ''),
@@ -908,11 +950,11 @@ class GameEngine:
     
     def close_shop(self):
         self.current_shop = None
-        return "Magasin fermé."
+        return t("Magasin fermé.", self.language)
     
     def talk_to_npc(self, npc_name):
         if npc_name not in NPCS_DIALOGUE:
-            return f"NPC {npc_name} non trouvé."
+            return f"NPC {npc_name} " + t("non trouvé.", self.language)
         dialogue_text = NPCS_DIALOGUE[npc_name]
         return f"<p><strong>{npc_name}:</strong> {dialogue_text}</p>"
 
@@ -920,12 +962,12 @@ class GameEngine:
         """Achète un boost de chance de loot (+0.5% cumulable)."""
         cost = 1000 + (self.loot_boost_count * 500)
         if self.player_stats["gold"] < cost:
-            return f"Or insuffisant ! (Prix: {cost} or, Vous: {self.player_stats['gold']} or)"
+            return t("Or insuffisant !", self.language) + f" (" + t("Prix:", self.language) + f" {cost} " + t("or", self.language) + ", " + t("Vous:", self.language) + f" {self.player_stats['gold']} " + t("or", self.language) + ")"
         self.player_stats["gold"] -= cost
         self.loot_boost_count += 1
         total_bonus = self.loot_boost_count * 0.5
         next_cost = 1000 + (self.loot_boost_count * 500)
-        return f"🍀 Chance de loot améliorée ! +0.5% (Total: +{total_bonus}%) — Prochain boost: {next_cost} or"
+        return f"🍀 {t('Chance de loot améliorée !', self.language)} +0.5% (Total: +{total_bonus}%) — {t('Prochain boost:', self.language)} {next_cost} " + t("or", self.language)
 
     def get_loot_boost_info(self):
         """Retourne les infos du boost de loot pour l'affichage."""
@@ -940,17 +982,17 @@ class GameEngine:
 
     def rest(self):
         if self.in_combat:
-            return "Vous ne pouvez pas vous reposer pendant un combat !"
+            return t("Vous ne pouvez pas vous reposer pendant un combat !", self.language)
         heal_amount = int(self.player_stats["max_health"] * 0.3)
         mana_amount = int(self.player_stats["max_mana"] * 0.2)
         healed = self.heal(heal_amount)
         mana_restored = min(mana_amount, self.player_stats["max_mana"] - self.player_stats["mana"])
         self.player_stats["mana"] += mana_restored
-        return f"Vous vous reposez... Santé restaurée : {healed} HP, Mana restauré : {mana_restored} MP."
+        return t("Vous vous reposez...", self.language) + " " + t("Santé restaurée :", self.language) + f" {healed} HP, " + t("Mana restauré :", self.language) + f" {mana_restored} MP."
     
     def use_skill(self, skill_name):
         if not self.player_class:
-            return {"message": "Vous n'avez pas de classe!", "action": "none"}
+            return {"message": t("Vous n'avez pas de classe!", self.language), "action": "none"}
         
         # Vérifier d'abord dans les compétences de base (SKILLS)
         class_skills = SKILLS.get(self.player_class, {})
@@ -966,15 +1008,15 @@ class GameEngine:
                     skill_data = skill
                     break
             if skill_data is None:
-                return {"message": f"Compétence {skill_name} non trouvée!", "action": "none"}
+                return {"message": t("Compétence", self.language) + f" {skill_name} " + t("non trouvée!", self.language), "action": "none"}
         else:
-            return {"message": f"Compétence {skill_name} non trouvée ou non débloquée!", "action": "none"}
+            return {"message": t("Compétence", self.language) + f" {skill_name} " + t("non trouvée ou non débloquée!", self.language), "action": "none"}
         
         # Extraire les données de la compétence
         mana_cost = skill_data.get("mana_cost", 0)
         if self.player_stats["mana"] < mana_cost:
             return {
-                "message": f"Pas assez de mana! (Besoin: {mana_cost}, Mana: {self.player_stats['mana']})",
+                "message": t("Pas assez de mana!", self.language) + f" (" + t("Besoin:", self.language) + f" {mana_cost}, Mana: {self.player_stats['mana']})",
                 "action": "none",
                 "skill_type": "fail"
             }
@@ -982,9 +1024,9 @@ class GameEngine:
         
         # Déterminer le type d'animation selon la compétence avec match/case
         match skill_name:
-            case "Éclair" | "Boule de Feu" | "Météorite" | "Tir de Précision" | "Charge Furieuse" | "Coup Mortel" | "Coup Puissant":
+            case "Éclair" | "Boule de Feu" | "Météorite" | "Tir de Précision" | "Charge Furieuse" | "Coup Mortel" | "Coup Puissant" | "Ruée d'Or" | "Double ou Rien" | "Dévaliser" | "Coup de Chance":
                 skill_type = "magic"
-            case "Soin" | "Défense Renforcée" | "Esquive" | "Glaciation" | "Téléportation":
+            case "Soin" | "Défense Renforcée" | "Esquive" | "Glaciation" | "Téléportation" | "Fouille Accrue":
                 skill_type = "heal"
             case "Tir Rapide" | "Pluie de Flèches" | "Volée Explosive":
                 skill_type = "rapid"
@@ -995,7 +1037,7 @@ class GameEngine:
         if skill_data.get("heal"):
             healed = self.heal(skill_data["heal"])
             return {
-                "message": f"Vous avez utilisé {skill_name}! Santé restaurée: {healed} HP",
+                "message": t("Vous avez utilisé", self.language) + f" {skill_name}! " + t("Santé restaurée:", self.language) + f" {healed} HP",
                 "action": "heal",
                 "skill_type": skill_type,
                 "heal_amount": healed
@@ -1007,7 +1049,7 @@ class GameEngine:
             duration = skill_data.get("duration", 3)
             self.temporary_buffs["defense"] = boost
             return {
-                "message": f"Vous avez utilisé {skill_name}! Défense augmentée de +{boost} pendant {duration} tours!",
+                "message": t("Vous avez utilisé", self.language) + f" {skill_name}! " + t("Défense augmentée de", self.language) + f" +{boost} " + t("pendant", self.language) + f" {duration} " + t("tours!", self.language),
                 "action": "defense_boost",
                 "skill_type": skill_type,
                 "boost_amount": boost
@@ -1020,7 +1062,7 @@ class GameEngine:
             bonus = int(self.player_stats["attack"] * (boost_mult - 1))
             self.temporary_buffs["attack"] = bonus
             return {
-                "message": f"Vous avez utilisé {skill_name}! Attaque augmentée de +{bonus} pendant {duration} tours!",
+                "message": t("Vous avez utilisé", self.language) + f" {skill_name}! " + t("Attaque augmentée de", self.language) + f" +{bonus} " + t("pendant", self.language) + f" {duration} " + t("tours!", self.language),
                 "action": "attack_boost",
                 "skill_type": skill_type,
                 "boost_amount": bonus
@@ -1032,17 +1074,38 @@ class GameEngine:
             duration = skill_data.get("duration", 2)
             self.temporary_buffs["defense"] = int(self.player_stats.get("defense", 0) * reduction)
             return {
-                "message": f"Vous avez utilisé {skill_name}! Dégâts réduits de {int(reduction * 100)}% pendant {duration} tours!",
+                "message": t("Vous avez utilisé", self.language) + f" {skill_name}! " + t("Dégâts réduits de", self.language) + f" {int(reduction * 100)}% " + t("pendant", self.language) + f" {duration} " + t("tours!", self.language),
                 "action": "damage_reduction",
                 "skill_type": skill_type
             }
         
+        # Pilleur : Fouille Accrue (buff non-damage)
+        if skill_name == "Fouille Accrue":
+            self.fouille_accrue_active = True
+            return {
+                "message": t("Vous avez utilisé", self.language) + f" {skill_name}! " + t("Prochain kill : loot doublé et or +50% !", self.language),
+                "action": "buff",
+                "skill_type": skill_type
+            }
+
+        # Pilleur : Ruée d'Or (set gold multiplier)
+        if skill_data.get("gold_multiplier"):
+            self.gold_multiplier_next_kill = skill_data["gold_multiplier"]
+
+        # Pilleur : Double ou Rien (set gamble flag)
+        if skill_name == "Double ou Rien":
+            self.double_or_nothing_active = True
+
+        # Pilleur : Dévaliser — critique garanti
+        if skill_data.get("guaranteed_crit"):
+            pass  # Sera géré dans la section critique via force-crit
+
         damage_multiplier = skill_data.get("damage_multiplier", 1.0)
         hits = skill_data.get("hits", 1)
         total_damage = 0
-        
+
         if self.in_combat and self.current_enemy:
-            result = f"Vous avez utilisé {skill_name}!\n"
+            result = t("Vous avez utilisé", self.language) + f" {skill_name}!\n"
             for i in range(hits):
                 if not self.current_enemy or self.current_enemy["health"] <= 0:
                     break
@@ -1060,15 +1123,23 @@ class GameEngine:
                     hit_damage = int(hit_damage * skill_mult)
                 self.current_enemy["health"] -= hit_damage
                 total_damage += hit_damage
-                result += f"Hit {i+1}: {hit_damage} dégâts\n"
+                result += f"Hit {i+1}: {hit_damage} " + t("dégâts", self.language) + "\n"
 
             # Tick des buffs de runes
             self.tick_rune_buffs()
             self.enemy_health = self.current_enemy.get("health", 0)
-            result += f"Dégâts totaux: {total_damage}\n"
+            result += t("Dégâts totaux:", self.language) + f" {total_damage}\n"
             
             # Déterminer si c'est un coup critique pour les compétences
-            is_critical = random.random() < 0.15
+            if skill_data.get("guaranteed_crit"):
+                is_critical = True
+            else:
+                is_critical = random.random() < (0.15 + self.innate_crit_chance)
+            # Pilleur : Cascade Critique sur skill
+            if is_critical and self.player_class == "Pilleur" and "Cascade Critique" in self.unlocked_skills:
+                heal_amount = self.heal(int(total_damage * 0.25))
+                if heal_amount > 0:
+                    result += f"\n⚡ {t('Cascade Critique :', self.language)} +{heal_amount} HP"
             
             if self.current_enemy["health"] <= 0:
                 loot = self.get_loot(self.current_enemy.get("level", 1))
@@ -1076,26 +1147,69 @@ class GameEngine:
                 gold_gain = self.current_enemy.get("gold_reward", 20)
                 enemy_name = self.current_enemy["name"]
                 
+                # Pilleur : Trésor Vivant (gold bonus passif inné)
+                if self.player_class == "Pilleur":
+                    tresor_bonus = int(gold_gain * 0.15)
+                    gold_gain += tresor_bonus
+                    result += f"\n💎 {t('Trésor Vivant :', self.language)} +{tresor_bonus} " + t("or bonus !", self.language)
+
+                # Pilleur : multiplicateur d'or (Ruée d'Or)
+                if self.gold_multiplier_next_kill > 1:
+                    extra_gold = gold_gain * (self.gold_multiplier_next_kill - 1)
+                    gold_gain += int(extra_gold)
+                    ruee_or_txt = t("Ruée d'Or :", self.language)
+                    result += f"\n💰 {ruee_or_txt} x{self.gold_multiplier_next_kill} " + t("or !", self.language)
+                    self.gold_multiplier_next_kill = 1
+
+                # Pilleur : Fouille Accrue or +50%
+                if self.fouille_accrue_active:
+                    fouille_gold = int(gold_gain * 0.5)
+                    gold_gain += fouille_gold
+                    result += f"\n🔍 {t('Fouille Accrue :', self.language)} +{fouille_gold} " + t("or bonus !", self.language)
+
                 self.player_stats["gold"] += gold_gain
                 self.update_quest_progress(enemy_name=enemy_name)
                 self.update_quest_progress(gold_gain=gold_gain)
                 self.add_exp(exp_gain)
                 self.total_enemies_defeated += 1
-                
+
                 if self.current_enemy.get("is_boss"):
                     self.boss_defeated[self.current_enemy["name"]] = True
-                
-                result += f"\n{self.current_enemy['name']} a été vaincu!\n"
-                result += f"Expérience gagnée: {exp_gain}, Or gagné: {gold_gain}\n"
-                
+
+                result += f"\n{self.current_enemy['name']} " + t("a été vaincu!", self.language) + "\n"
+                result += t("Expérience gagnée:", self.language) + f" {exp_gain}, " + t("Or gagné:", self.language) + f" {gold_gain}\n"
+
+                # Pilleur : Double ou Rien sur le loot (via skill)
+                if self.double_or_nothing_active:
+                    self.double_or_nothing_active = False
+                    if random.random() < 0.5:
+                        for item, qty in loot.items():
+                            loot[item] = qty * 2
+                        result += f"\n🎲 {t('Double ou Rien : DOUBLE ! Loot doublé !', self.language)}\n"
+                    else:
+                        loot = {}
+                        result += f"\n🎲 {t('Double ou Rien : RIEN ! Loot perdu...', self.language)}\n"
+
+                # Pilleur : Dévaliser — loot épique garanti
+                if skill_data.get("guaranteed_loot_rarity"):
+                    rarity = skill_data["guaranteed_loot_rarity"]
+                    if rarity in LOOT_BY_RARITY:
+                        guaranteed_item = random.choice(LOOT_BY_RARITY[rarity])
+                        loot[guaranteed_item] = loot.get(guaranteed_item, 0) + 1
+                        result += f"\n🏴‍☠️ {t('Dévaliser :', self.language)} {guaranteed_item} ({rarity}) !\n"
+
                 if loot:
                     for item, qty in loot.items():
                         self.inventory[item] = self.inventory.get(item, 0) + qty
-                        result += f"Butin: {item} (x{qty})\n"
+                        result += t("Butin:", self.language) + f" {item} (x{qty})\n"
+
+                # Pilleur : Fouille Accrue — reset après kill
+                if self.fouille_accrue_active:
+                    self.fouille_accrue_active = False
 
                 rune_drop = self.drop_rune(self.current_enemy.get("level", 1))
                 if rune_drop:
-                    result += f"Rune : {rune_drop}\n"
+                    result += t("Rune :", self.language) + f" {rune_drop}\n"
 
                 card_drop = self.drop_card(self.current_enemy.get("level", 1), self.current_enemy.get("is_boss", False))
                 if card_drop:
@@ -1128,10 +1242,10 @@ class GameEngine:
             enemy_damage = max(1, enemy_damage - (player_defense + def_boost) // 2)
 
             self.take_damage(enemy_damage)
-            result += f"\n{self.current_enemy['name']} riposte et inflige {enemy_damage} dégâts !"
+            result += f"\n{self.current_enemy['name']} " + t("riposte et inflige", self.language) + f" {enemy_damage} " + t("dégâts !", self.language)
 
             if self.player_stats['health'] <= 0:
-                result += "\nVous avez été vaincu !"
+                result += "\n" + t("Vous avez été vaincu !", self.language)
                 self.in_combat = False
                 self.current_enemy = None
                 self.enemy_health = 0
@@ -1162,23 +1276,23 @@ class GameEngine:
                 "enemy_health": self.current_enemy.get("health", 0)
             }
         return {
-            "message": f"Vous avez utilisé {skill_name}! (Hors combat)",
+            "message": t("Vous avez utilisé", self.language) + f" {skill_name}! (" + t("Hors combat", self.language) + ")",
             "action": "none",
             "skill_type": skill_type
         }
     
     def flee_combat(self):
         if not self.in_combat or not self.current_enemy:
-            return "Vous n'êtes pas en combat!"
+            return t("Vous n'êtes pas en combat!", self.language)
         if random.random() < 0.5:
             self.in_combat = False
             self.current_enemy = None
             self.enemy_health = 0
             self.enemy_max_health = 0
-            return "Vous avez réussi à fuir!"
+            return t("Vous avez réussi à fuir!", self.language)
         enemy_damage = self.current_enemy.get("attack", 5) + random.randint(-2, 3)
         self.take_damage(enemy_damage)
-        return f"Vous n'avez pas pu fuir! L'ennemi vous a infligé {enemy_damage} dégâts."
+        return t("Vous n'avez pas pu fuir!", self.language) + " " + t("L'ennemi vous a infligé", self.language) + f" {enemy_damage} " + t("dégâts.", self.language)
     
     def drop_item(self, item_name):
         if item_name not in self.inventory or self.inventory[item_name] <= 0:
@@ -1188,50 +1302,11 @@ class GameEngine:
             del self.inventory[item_name]
         return True
     
-    def unlock_zone(self, zone_id):
-        """Débloque une zone"""
-        if zone_id not in self.unlocked_zones and zone_id in ZONES:
-            zone = ZONES[zone_id]
-            if self.player_stats['level'] >= zone.get('required_level', 999):
-                self.unlocked_zones.append(zone_id)
-                return f"Zone {zone_id} débloquée !"
-        return f"Impossible de débloquer la zone {zone_id}"
-
-    def check_unlocked_zones(self):
-        """Vérifie et débloque toutes les zones disponibles selon le niveau"""
-        for zone_id, zone_data in ZONES.items():
-            if zone_id not in self.unlocked_zones:
-                required_level = zone_data.get('required_level', 999)
-                if self.player_stats['level'] >= required_level:
-                    self.unlock_zone(zone_id)
-
-    def set_zone(self, zone_id):
-        """Change de zone"""
-        if zone_id in self.unlocked_zones and zone_id in ZONES:
-            self.current_zone = zone_id
-            return f"Zone changée vers {ZONES[zone_id]['name']}"
-        return f"Zone {zone_id} non disponible"
-
-    def change_zone(self, zone_id):
-        """Change de zone avec vérifications"""
-        try:
-            zone_id = int(zone_id)
-        except:
-            return f"Zone invalide: {zone_id}"
-        return self.set_zone(zone_id)
-
-    def get_zone_info(self, zone_id=None):
-        """Retourne les infos d'une zone ou de la zone actuelle"""
-        zone_id = zone_id or self.current_zone
-        if zone_id in ZONES:
-            return ZONES[zone_id]
-        return None
-
     def set_difficulty(self, difficulty):
         if difficulty not in DIFFICULTY_SETTINGS:
-            return "Difficulté invalide!"
+            return t("Difficulté invalide!", self.language)
         self.difficulty = difficulty
-        
+
         # Utilisation de match/case pour les paramètres de difficulté
         match difficulty:
             case "facile":
@@ -1240,8 +1315,8 @@ class GameEngine:
                 self.boss_spawn_chance = 0.15
             case "difficile":
                 self.boss_spawn_chance = 0.30
-        
-        return f"Difficulté définie à {difficulty}!"
+
+        return t("Difficulté définie à", self.language) + f" {difficulty}!"
         
 
     def update_quest_progress(self, enemy_name=None, exp_gain=0, gold_gain=0):
@@ -1375,7 +1450,7 @@ class GameEngine:
     def craft_rune(self, recipe_name):
         """Combine 2 runes pour créer un buff temporaire."""
         if recipe_name not in RUNE_RECIPES:
-            return "Recette inconnue !"
+            return t("Recette inconnue !", self.language)
         recipe = RUNE_RECIPES[recipe_name]
         needed_runes = recipe["runes"]
         # Vérifier que le joueur possède les runes requises (toute rareté)
@@ -1396,9 +1471,9 @@ class GameEngine:
                 found_runes.append(best_key)
                 used_keys.append(best_key)
             else:
-                return f"Rune manquante : {needed}"
+                return t("Rune manquante :", self.language) + f" {needed}"
         if len(found_runes) < len(needed_runes):
-            return "Runes insuffisantes pour cette recette."
+            return t("Runes insuffisantes pour cette recette.", self.language)
         # Consommer les runes
         best_multiplier = 1.0
         for key in used_keys:
@@ -1421,7 +1496,7 @@ class GameEngine:
         self.active_rune_buffs = [b for b in self.active_rune_buffs if b["name"] != recipe_name]
         self.active_rune_buffs.append(buff)
         mult_text = f" (x{best_multiplier})" if best_multiplier > 1.0 else ""
-        return f"{recipe['icon']} {recipe_name} activé pour {recipe['duration']} tours{mult_text} !"
+        return f"{recipe['icon']} {recipe_name} " + t("activé pour", self.language) + f" {recipe['duration']} " + t("tours", self.language) + f"{mult_text} !"
 
     def get_rune_buff_summary(self):
         """Retourne un résumé des buffs de runes actifs."""
@@ -1499,13 +1574,8 @@ class GameEngine:
         # Chance de base + loot boost du Colporteur + bonus légendaire
         base_chance = CARD_DROP_CHANCE
         loot_boost_bonus = self.loot_boost_count * 0.005
-        # Bonus légendaire : somme des probabilités légendaires de la loot table
-        legendary_bonus = 0
-        zone_info = self.get_zone_info()
-        if zone_info and 'loot_table' in zone_info:
-            legendary_prob = zone_info['loot_table'].get('legendaire', 0)
-        else:
-            legendary_prob = 0.05
+        # Bonus légendaire : basé sur la probabilité légendaire de base
+        legendary_prob = 0.05
         legendary_bonus = 0.01 * legendary_prob * enemy_level
 
         drop_chance = base_chance + loot_boost_bonus + legendary_bonus
@@ -1535,9 +1605,9 @@ class GameEngine:
     def use_card(self, card_name):
         """Utilise une carte pour appliquer son bonus permanent."""
         if card_name not in CARDS:
-            return "Carte inconnue !"
+            return t("Carte inconnue !", self.language)
         if card_name not in self.card_inventory or self.card_inventory[card_name] <= 0:
-            return f"Vous n'avez pas de {card_name} !"
+            return t("Vous n'avez pas de", self.language) + f" {card_name} !"
 
         card_data = CARDS[card_name]
         stat = card_data["stat"]
@@ -1552,7 +1622,7 @@ class GameEngine:
         if stat == "loot_boost":
             self.loot_boost_count += int(value / 0.5) if value >= 0.5 else 1
             self.cards_used.append(card_name)
-            return f"{card_data['icon']} {card_name} utilisée ! Chance de loot +{value}% permanente !"
+            return f"{card_data['icon']} {card_name} " + t("utilisée !", self.language) + " " + t("Chance de loot", self.language) + f" +{value}% " + t("permanente !", self.language)
         elif stat == "max_health":
             self.player_stats["max_health"] += value
             self.player_stats["health"] += value
@@ -1565,8 +1635,8 @@ class GameEngine:
             self.player_stats["defense"] += value
 
         self.cards_used.append(card_name)
-        stat_names = {"attack": "Attaque", "defense": "Défense", "max_health": "PV max", "max_mana": "Mana max"}
-        return f"{card_data['icon']} {card_name} utilisée ! {stat_names.get(stat, stat)} +{value} permanent !"
+        stat_names = {"attack": t("Attaque", self.language), "defense": t("Défense", self.language), "max_health": t("PV max", self.language), "max_mana": t("Mana max", self.language)}
+        return f"{card_data['icon']} {card_name} " + t("utilisée !", self.language) + f" {stat_names.get(stat, stat)} +{value} " + t("permanent !", self.language)
 
     def get_cards_display(self):
         """Retourne les cartes pour l'affichage."""
@@ -1591,37 +1661,37 @@ class GameEngine:
         """Calcule le détail du score par catégorie."""
         details = {}
 
-        details["Niveau"] = {
+        details[t("Niveau", self.language)] = {
             "value": self.player_stats["level"],
             "points": self.player_stats["level"] * 100,
             "icon": "⭐"
         }
 
-        details["Ennemis vaincus"] = {
+        details[t("Ennemis vaincus", self.language)] = {
             "value": self.total_enemies_defeated,
             "points": self.total_enemies_defeated * 10,
             "icon": "⚔️"
         }
 
-        details["Boss vaincus"] = {
+        details[t("Boss vaincus", self.language)] = {
             "value": len(self.boss_defeated),
             "points": len(self.boss_defeated) * 500,
             "icon": "👹"
         }
 
-        details["Quêtes complétées"] = {
+        details[t("Quêtes complétées", self.language)] = {
             "value": len(self.completed_quests),
             "points": len(self.completed_quests) * 200,
             "icon": "📜"
         }
 
-        details["Or accumulé"] = {
+        details[t("Or accumulé", self.language)] = {
             "value": self.player_stats["gold"],
             "points": self.player_stats["gold"] // 5,
             "icon": "💰"
         }
 
-        details["Dégâts infligés"] = {
+        details[t("Dégâts infligés", self.language)] = {
             "value": self.total_damage_dealt,
             "points": int(self.total_damage_dealt * 0.5),
             "icon": "💥"
@@ -1636,26 +1706,20 @@ class GameEngine:
             if equipped_item and equipped_item in ITEMS and ITEMS[equipped_item].get("rarity") == "legendaire":
                 legendary_count += 1
 
-        details["Items légendaires"] = {
+        details[t("Items légendaires", self.language)] = {
             "value": legendary_count,
             "points": legendary_count * 300,
             "icon": "🏆"
         }
 
-        details["Cartes utilisées"] = {
+        details[t("Cartes utilisées", self.language)] = {
             "value": len(self.cards_used),
             "points": len(self.cards_used) * 150,
             "icon": "🃏"
         }
 
-        details["Zones explorées"] = {
-            "value": len(self.unlocked_zones),
-            "points": len(self.unlocked_zones) * 100,
-            "icon": "🗺️"
-        }
-
         runes_count = sum(self.rune_inventory.values())
-        details["Runes collectées"] = {
+        details[t("Runes collectées", self.language)] = {
             "value": runes_count,
             "points": runes_count * 20,
             "icon": "🔮"
@@ -1669,25 +1733,25 @@ class GameEngine:
         total = sum(d["points"] for d in details.values())
 
         if total < 500:
-            rank = "Novice"
+            rank = t("Novice", self.language)
             rank_icon = "🥉"
         elif total < 2000:
-            rank = "Apprenti"
+            rank = t("Apprenti", self.language)
             rank_icon = "🥉"
         elif total < 5000:
-            rank = "Aventurier"
+            rank = t("Aventurier", self.language)
             rank_icon = "🥈"
         elif total < 10000:
-            rank = "Héros"
+            rank = t("Héros", self.language)
             rank_icon = "🥈"
         elif total < 20000:
-            rank = "Champion"
+            rank = t("Champion", self.language)
             rank_icon = "🥇"
         elif total < 40000:
-            rank = "Légende"
+            rank = t("Légende", self.language)
             rank_icon = "🥇"
         else:
-            rank = "Dieu"
+            rank = t("Dieu", self.language)
             rank_icon = "👑"
 
         return {

@@ -60,6 +60,19 @@ CLASSES = {
         },
         "bonus": "+1.5 Attack, +1 Mana par niveau",
         "skill": "Tir Rapide - 2 attaques rapides, coûte 15 mana"
+    },
+    "Pilleur": {
+        "description": "Chasseur de trésors rusé. Chance critique innée +20%, qualité de loot +20% (passif).",
+        "base_stats": {
+            "health": 85,
+            "max_health": 85,
+            "attack": 5,
+            "defense": 1,
+            "mana": 60,
+            "max_mana": 60
+        },
+        "bonus": "+1 Attack, +0.5% Crit, +1% Loot par niveau",
+        "skill": "Coup de Chance - 1.5x dégâts, boost loot si kill"
     }
 }
 
@@ -113,6 +126,21 @@ SKILLS = {
             "damage_reduction": 0.5,
             "duration": 2,
             "icon": "💨",
+            "unlocked_at": 1
+        }
+    },
+    "Pilleur": {
+        "Coup de Chance": {
+            "description": "Attaque chanceuse (1.5x). Si l'ennemi meurt, loot boosté !",
+            "mana_cost": 15,
+            "damage_multiplier": 1.5,
+            "icon": "🍀",
+            "unlocked_at": 1
+        },
+        "Fouille Accrue": {
+            "description": "Prochain kill : chance de loot doublée et or +50%",
+            "mana_cost": 20,
+            "icon": "🔍",
             "unlocked_at": 1
         }
     }
@@ -227,6 +255,42 @@ PROGRESSIVE_SKILLS = {
             "damage_multiplier": 4.0,
             "critical": True,
             "icon": "🎯"
+        }
+    ],
+    "Pilleur": [
+        {
+            "name": "Ruée d'Or",
+            "level": 3,
+            "description": "1.8x dégâts + or du prochain kill triplé",
+            "mana_cost": 22,
+            "damage_multiplier": 1.8,
+            "gold_multiplier": 3,
+            "icon": "💰"
+        },
+        {
+            "name": "Double ou Rien",
+            "level": 5,
+            "description": "2x dégâts. 50% double le loot, 50% perd tout le loot du kill",
+            "mana_cost": 28,
+            "damage_multiplier": 2.0,
+            "icon": "🎲"
+        },
+        {
+            "name": "Cascade Critique",
+            "level": 8,
+            "description": "Les coups critiques soignent 25% des dégâts infligés",
+            "mana_cost": 18,
+            "icon": "⚡"
+        },
+        {
+            "name": "Dévaliser",
+            "level": 12,
+            "description": "Critique garanti 3x dégâts + loot automatique de rareté épique",
+            "mana_cost": 45,
+            "damage_multiplier": 3.0,
+            "guaranteed_crit": True,
+            "guaranteed_loot_rarity": "epique",
+            "icon": "🏴‍☠️"
         }
     ]
 }
@@ -1586,7 +1650,7 @@ ITEMS = {
        "description": "Potion mythique qui ramène de la mort"
     },
 
-    # ===== Items Zone 2 (nouveaux objets) =====
+    # ===== Objets avancés =====
     "Bâton des Abysses": {
        "type": "weapon",
        "attack_bonus": 15,
@@ -1860,16 +1924,85 @@ LOCATIONS = {
         "npcs": [],
         "exits": {
             "ouest": "castle",
-            "nord": "mountain"
+            "nord": "mountain",
+            "bas": "portal_chamber"
         },
         "x": 20,
         "y": 40
+    },
+    "portal_chamber": {
+        "name": "Crypte du Portail Maudit",
+        "description": "Une crypte souterraine maudite depuis des siècles. Au centre, un portail tourbillonnant émet une lueur rouge sang et noire. L'air pue le soufre et les murmures damnés résonnent dans les murs.",
+        "enemies": [],
+        "npcs": ["Gardien du Portail"],
+        "exits": {
+            "haut": "tower"
+        },
+        "portal": {
+            "destination": "astral_gate",
+            "text": "Traverser le portail vers les Enfers"
+        },
+        "x": 20,
+        "y": 60
+    },
+    # ===== ROYAUME INFERNAL (carte accessible via le portail) =====
+    "astral_gate": {
+        "name": "Seuil des Damnés",
+        "description": "Vous émergez dans un monde de ténèbres et de flammes. Le ciel est un voile de braises éternelles. Le sol craquelé saigne une lave noirâtre sous vos pieds.",
+        "enemies": ["Sentinelle Infernale", "Sentinelle Infernale"],
+        "npcs": [],
+        "exits": {
+            "nord": "crystal_fields",
+            "est": "star_lake"
+        },
+        "portal": {
+            "destination": "portal_chamber",
+            "text": "Fuir par le portail vers le monde des vivants"
+        },
+        "x": 35,
+        "y": 85
+    },
+    "crystal_fields": {
+        "name": "Champs de Cendres",
+        "description": "Une vaste plaine recouverte de cendres et d'ossements calcinés. Des pics de roche noire percent le sol comme des crocs démoniaques. L'air brûle les poumons.",
+        "enemies": ["Âme Damnée", "Âme Damnée", "Golem de Cristal"],
+        "npcs": [],
+        "exits": {
+            "sud": "astral_gate",
+            "est": "void_sanctum"
+        },
+        "x": 35,
+        "y": 70
+    },
+    "star_lake": {
+        "name": "Lac de Sang",
+        "description": "Un lac immense d'un rouge écarlate dont la surface bouillonne lentement. Des silhouettes damnées se tordent sous la surface, implorant la libération.",
+        "enemies": ["Dragon Infernal", "Sentinelle Infernale"],
+        "npcs": ["Esprit du Lac"],
+        "exits": {
+            "ouest": "astral_gate",
+            "nord": "void_sanctum"
+        },
+        "x": 55,
+        "y": 85
+    },
+    "void_sanctum": {
+        "name": "Abîme du Démon",
+        "description": "Un temple maudit flottant au-dessus d'un gouffre sans fond. Les murs suintent le sang et des runes infernales pulsent d'une lueur maléfique. Une puissance terrifiante émane du trône central.",
+        "enemies": ["Gardien des Abysses", "Entité Démoniaque"],
+        "npcs": [],
+        "exits": {
+            "sud": "star_lake",
+            "ouest": "crystal_fields"
+        },
+        "x": 55,
+        "y": 70
     }
 }
 
 # Enemis
 ENEMIES = {
-    # ===== Ennemis Zone 1 (de base) =====
+    # ===== Ennemis de base =====
     "Goblin": {
         "health": 25,
         "attack": 10,
@@ -1942,7 +2075,7 @@ ENEMIES = {
         "exp_reward": 500,
         "gold_reward": 500
     },
-    # ===== Ennemis Zone 2 (nouveaux monstres) =====
+    # ===== Ennemis avancés =====
     "Dragon des Abysses": {
         "health": 350,
         "attack": 45,
@@ -2134,6 +2267,47 @@ ENEMIES = {
         "level": 13,
         "exp_reward": 350,
         "gold_reward": 120
+    },
+    # ===== Ennemis du Royaume Infernal =====
+    "Sentinelle Infernale": {
+        "health": 160,
+        "attack": 26,
+        "defense": 10,
+        "level": 10,
+        "exp_reward": 250,
+        "gold_reward": 80
+    },
+    "Âme Damnée": {
+        "health": 200,
+        "attack": 32,
+        "defense": 8,
+        "level": 13,
+        "exp_reward": 320,
+        "gold_reward": 100
+    },
+    "Dragon Infernal": {
+        "health": 320,
+        "attack": 42,
+        "defense": 18,
+        "level": 18,
+        "exp_reward": 600,
+        "gold_reward": 200
+    },
+    "Gardien des Abysses": {
+        "health": 380,
+        "attack": 48,
+        "defense": 20,
+        "level": 22,
+        "exp_reward": 750,
+        "gold_reward": 250
+    },
+    "Entité Démoniaque": {
+        "health": 450,
+        "attack": 55,
+        "defense": 22,
+        "level": 25,
+        "exp_reward": 900,
+        "gold_reward": 350
     }
 }
 
@@ -2146,7 +2320,9 @@ NPCS_DIALOGUE = {
     "Pretre Sage": "La sagesse vient de l'experience. Continuez votre quete!",
     "Druide": "La nature vous benit. Vous gagnez 50 points de mana.",
     "Gardien du Tresor": "NOOOOOON! CE TRESOR EST A MOI!!!",
-    "Colporteur Mystique": "Psst... J'ai un secret pour trouver de meilleurs trésors. Contre quelques pièces d'or, je peux améliorer votre chance de loot. Chaque achat augmente votre chance de 0.5%, et c'est cumulable à l'infini !"
+    "Colporteur Mystique": "Psst... J'ai un secret pour trouver de meilleurs trésors. Contre quelques pièces d'or, je peux améliorer votre chance de loot. Chaque achat augmente votre chance de 0.5%, et c'est cumulable à l'infini !",
+    "Gardien du Portail": "Ce portail maudit mène aux Enfers... un royaume de souffrance et de ténèbres. Les démons qui y errent ont soif de chair vivante. Si vous osez y aller, le portail vous permettra de fuir... si vous survivez.",
+    "Esprit du Lac": "Ce sang... ce sont les âmes des damnés qui se noient ici depuis l'aube des temps. Leurs cris résonnent dans mes pensées. N'écoutez pas leurs murmures... ils veulent vous entraîner au fond."
 }
 
 # Configuration des BOSS - Créatures redoutables avec équipement
@@ -2221,160 +2397,6 @@ BOSS_EQUIPMENT_CONFIG = {
         "armor_bonus": 12,
         "health_bonus": 80,
         "items_count": 3
-    }
-}
-
-# ==================== SYSTÈME DE ZONES ====================
-
-# Configuration des zones
-ZONES = {
-    1: {
-        "name": "Zone 1",
-        "description": "Zone de base - Forêts, villages et donjons classiques",
-        "unlocked_by_default": True,
-        "required_level": 1,
-        "enemies": ["Goblin", "Loup", "Goblin Guerrier", "Chauve-souris", "Nymphe Enragee"],
-        "loot_table": {
-            "commun": 0.55,
-            "rare": 0.30,
-            "epique": 0.10,
-            "legendaire": 0.05
-        }
-    },
-    2: {
-        "name": "Zone 2",
-        "description": "Zone avancée - Monstres puissants et trésors rares",
-        "unlocked_by_default": False,
-        "required_level": 10,
-        "enemies": ["Dragon Jeune", "Golem", "Pretre Noir", "Gardien du Tresor", "Liche"],
-        "loot_table": {
-            "commun": 0.20,
-            "rare": 0.35,
-            "epique": 0.30,
-            "legendaire": 0.15
-        }
-    }
-}
-
-# Ennemis spécifiques à la Zone 2 (en plus des ennemis de base)
-ZONE_2_ENEMIES = {
-    "Dragon des Abysses": {
-        "health": 350,
-        "attack": 45,
-        "defense": 15,
-        "level": 25,
-        "exp_reward": 800,
-        "gold_reward": 250
-    },
-    "Démon des Flammes": {
-        "health": 280,
-        "attack": 40,
-        "defense": 12,
-        "level": 22,
-        "exp_reward": 700,
-        "gold_reward": 200
-    },
-    "Golem de Pierre": {
-        "health": 400,
-        "attack": 30,
-        "defense": 25,
-        "level": 20,
-        "exp_reward": 600,
-        "gold_reward": 150
-    },
-    "Spectre Supérieur": {
-        "health": 220,
-        "attack": 35,
-        "defense": 8,
-        "level": 18,
-        "exp_reward": 550,
-        "gold_reward": 120
-    },
-    "Troll des Montagnes": {
-        "health": 300,
-        "attack": 38,
-        "defense": 10,
-        "level": 15,
-        "exp_reward": 450,
-        "gold_reward": 100
-    }
-}
-
-# Loot spécifique à la Zone 2 (en plus du loot de base)
-ZONE_2_LOOT = {
-    "commun": [
-        "Épée Acérée",
-        "Armure de Fer",
-        "Potion Santé Majeure",
-        "Potion Mana Majeure"
-    ],
-    "rare": [
-        "Épée de Lumière",
-        "Lame Sombre",
-        "Armure Acier",
-        "Armure de Brume",
-        "Potion Force",
-        "Potion Protection"
-    ],
-    "epique": [
-        "Glaive du Guerrier",
-        "Marteau de Guerre",
-        "Armure Dragon",
-        "Armure Mithril",
-        "Anneau du Guerrier",
-        "Couronne de Pouvoir"
-    ],
-    "legendaire": [
-        "Épée de Feu",
-        "Éclair Éternel",
-        "Armure Céleste",
-        "Armure Sacrée",
-        "Anneau Infini"
-    ]
-}
-
-# Items spécifiques à la Zone 2
-ZONE_2_ITEMS = {
-    "Bâton des Abysses": {
-        "type": "weapon",
-        "attack_bonus": 15,
-        "mana_bonus": 50,
-        "class": "Mage",
-        "rarity": "epique",
-        "price": 0,
-        "description": "Bâton imprimé de magie noire des abysses"
-    },
-    "Épée du Dragon": {
-        "type": "weapon",
-        "attack_bonus": 20,
-        "class": "Guerrier",
-        "rarity": "legendaire",
-        "price": 0,
-        "description": "Épée forgée dans les flammes d'un dragon"
-    },
-    "Arc des Ombres": {
-        "type": "weapon",
-        "attack_bonus": 18,
-        "class": "Archer",
-        "rarity": "epique",
-        "price": 0,
-        "description": "Arc maudit qui tire des flèches spectrales"
-    },
-    "Armure du Gardien": {
-        "type": "armor",
-        "defense_bonus": 12,
-        "health_bonus": 30,
-        "rarity": "epique",
-        "price": 0,
-        "description": "Armure portée par les gardiens des donjons"
-    },
-    "Amulette de l'Immortel": {
-        "type": "accessory",
-        "health_bonus": 50,
-        "defense_bonus": 5,
-        "rarity": "legendaire",
-        "price": 0,
-        "description": "Amulette qui confère une partie de l'immortalité"
     }
 }
 
